@@ -1,0 +1,25 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: ["kind/bug", "needs-triage"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps, or a project file that shows the problem.
+  - type: input
+    id: version
+    attributes:
+      label: Version and platform
+      placeholder: v0.1.0 on macOS 15, or commit abc1234 on Linux
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
