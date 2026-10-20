@@ -86,13 +86,24 @@ them for someone reading the history later.
 - **Title:** [Conventional Commits](https://www.conventionalcommits.org/), scoped by crate where
   one applies, as in `feat(mw-graph): validate wire types on connect`. Common types are `feat`,
   `fix`, `docs`, `test`, `refactor`, `perf`, `ci`, and `chore`. Mark breaking changes with `!`.
-- **Description:** what changed and why, `Closes #N`, and what a reviewer should look at first,
-  including any new dependency or `unsafe` code and its justification.
+- **Description:** follow the [PR template](../../.github/pull_request_template.md): what changed
+  and why with `Closes #N`, what a reviewer should look at first, how the tests cover the
+  acceptance criteria and which living docs changed, and any new dependency or `unsafe` code with
+  its justification. Leave out the last two sections when they don't apply.
 - **Draft until done.** Drafts skip CI. Mark the PR ready once the definition of done is met, and
   CI runs.
 
 Branch protection on `main` requires CI to pass on a branch that's up to date with `main`, and
 keeps history linear.
+
+Workflows can use only actions from GitHub itself and an allowlist in the repository's Actions
+settings (currently `taiki-e/install-action` and `Swatinem/rust-cache`), each pinned to a full
+commit SHA with its version in a comment. Dependabot keeps the pins current. Treat a new
+third-party action like a new dependency: justify it in the PR, and have a human developer add it
+to the allowlist under Settings → Actions → General first, or GitHub rejects the workflow run.
+
+Push protection rejects any push that contains a recognized credential. Don't bypass it: remove
+the secret from the branch's commits, or ask a human developer if it looks like a false positive.
 
 ## Definition of done
 

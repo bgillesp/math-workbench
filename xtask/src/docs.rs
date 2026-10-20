@@ -48,9 +48,7 @@ pub(crate) fn run(root: &Path) -> CheckResult {
         let Ok(text) = fs::read_to_string(root.join(&path)) else {
             continue; // deleted from the working tree but still in the index
         };
-        problems.extend(check_links(&path, &text, |target| {
-            root.join(target).exists()
-        }));
+        problems.extend(check_links(&path, &text, |target| root.join(target).exists()));
     }
     Ok(problems)
 }
@@ -84,11 +82,9 @@ fn markdown_files(root: &Path) -> Result<Vec<PathBuf>, Box<dyn std::error::Error
         .current_dir(root)
         .output()?;
     if !output.status.success() {
-        return Err(format!(
-            "git ls-files failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
+        return Err(
+            format!("git ls-files failed: {}", String::from_utf8_lossy(&output.stderr)).into()
+        );
     }
     let mut paths: Vec<PathBuf> = String::from_utf8(output.stdout)?
         .split('\0')
@@ -122,19 +118,15 @@ impl AdrStatus {
             "accepted" => Some(Self::Accepted),
             "rejected" => Some(Self::Rejected),
             "deprecated" => Some(Self::Deprecated),
-            _ => text
-                .strip_prefix("superseded by ")
-                .and_then(parse_adr_ref)
-                .map(Self::SupersededBy),
+            _ => {
+                text.strip_prefix("superseded by ").and_then(parse_adr_ref).map(Self::SupersededBy)
+            },
         }
     }
 
     /// Whether the decision took effect at some point, even if it has since been replaced.
     fn took_effect(self) -> bool {
-        matches!(
-            self,
-            Self::Accepted | Self::SupersededBy(_) | Self::Deprecated
-        )
+        matches!(self, Self::Accepted | Self::SupersededBy(_) | Self::Deprecated)
     }
 }
 
@@ -178,10 +170,7 @@ fn parse_adr_ref(text: &str) -> Option<u32> {
 fn doc_number(file_name: &str) -> Option<u32> {
     let (digits, slug) = file_name.strip_suffix(".md")?.split_once('-')?;
     let valid_slug = slug.split('-').all(|word| {
-        !word.is_empty()
-            && word
-                .bytes()
-                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+        !word.is_empty() && word.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
     });
     if digits.len() == 4 && digits.bytes().all(|b| b.is_ascii_digit()) && valid_slug {
         digits.parse().ok()
@@ -218,24 +207,16 @@ fn check_adrs(files: &[(String, String)], index: &str) -> Vec<String> {
         }
         let path = format!("{ADR_DIR}/{name}");
         let Some(number) = doc_number(name) else {
-            problems.push(format!(
-                "{path}: ADR file names look like `0001-short-title.md`"
-            ));
+            problems.push(format!("{path}: ADR file names look like `0001-short-title.md`"));
             continue;
         };
         if let Some(other) = adrs.get(&number) {
-            problems.push(format!(
-                "{path}: ADR-{number:04} is also used by {}",
-                other.path()
-            ));
+            problems.push(format!("{path}: ADR-{number:04} is also used by {}", other.path()));
             continue;
         }
         let title = format!("# ADR-{number:04}: ");
         if !text.lines().any(|line| line.starts_with(&title)) {
-            problems.push(format!(
-                "{path}: the title should start with `{}`",
-                title.trim_end()
-            ));
+            problems.push(format!("{path}: the title should start with `{}`", title.trim_end()));
         }
         let fields = front_matter(text).unwrap_or_default();
         let Some(status) = fields.get("status").copied().and_then(AdrStatus::parse) else {
@@ -246,11 +227,7 @@ fn check_adrs(files: &[(String, String)], index: &str) -> Vec<String> {
             continue;
         };
         let mut supersedes = Vec::new();
-        for item in fields
-            .get("supersedes")
-            .into_iter()
-            .flat_map(|list| list.split(','))
-        {
+        for item in fields.get("supersedes").into_iter().flat_map(|list| list.split(',')) {
             match parse_adr_ref(item.trim()) {
                 Some(old) => supersedes.push(old),
                 None => problems.push(format!(
@@ -259,15 +236,7 @@ fn check_adrs(files: &[(String, String)], index: &str) -> Vec<String> {
                 )),
             }
         }
-        adrs.insert(
-            number,
-            Adr {
-                number,
-                name: name.clone(),
-                status,
-                supersedes,
-            },
-        );
+        adrs.insert(number, Adr { number, name: name.clone(), status, supersedes });
     }
     problems.extend(check_supersede_links(&adrs));
     problems.extend(check_index(&adrs, index));
@@ -279,13 +248,11 @@ fn check_supersede_links(adrs: &BTreeMap<u32, Adr>) -> Vec<String> {
     for adr in adrs.values() {
         for &old in &adr.supersedes {
             match adrs.get(&old) {
-                None => problems.push(format!(
-                    "{}: supersedes ADR-{old:04}, which doesn't exist",
-                    adr.path()
-                )),
+                None => problems
+                    .push(format!("{}: supersedes ADR-{old:04}, which doesn't exist", adr.path())),
                 Some(_) if old == adr.number => {
                     problems.push(format!("{}: an ADR can't supersede itself", adr.path()));
-                }
+                },
                 Some(old_adr)
                     if adr.status.took_effect()
                         && old_adr.status != AdrStatus::SupersededBy(adr.number) =>
@@ -295,8 +262,8 @@ fn check_supersede_links(adrs: &BTreeMap<u32, Adr>) -> Vec<String> {
                         old_adr.path(),
                         adr.number
                     ));
-                }
-                Some(_) => {}
+                },
+                Some(_) => {},
             }
         }
         if let AdrStatus::SupersededBy(new) = adr.status {
@@ -311,13 +278,13 @@ fn check_supersede_links(adrs: &BTreeMap<u32, Adr>) -> Vec<String> {
                         new_adr.path(),
                         adr.number
                     ));
-                }
+                },
                 Some(new_adr) if !new_adr.status.took_effect() => problems.push(format!(
                     "{}: marked superseded by ADR-{new:04}, which is {}",
                     adr.path(),
                     new_adr.status
                 )),
-                Some(_) => {}
+                Some(_) => {},
             }
         }
     }
@@ -334,21 +301,18 @@ fn check_index(adrs: &BTreeMap<u32, Adr>, index: &str) -> Vec<String> {
     let mut heading: Option<String> = None;
     for event in Parser::new_ext(index, markdown_options()) {
         match event {
-            Event::Start(Tag::Heading {
-                level: HeadingLevel::H2,
-                ..
-            }) => {
+            Event::Start(Tag::Heading { level: HeadingLevel::H2, .. }) => {
                 heading = Some(String::new());
-            }
+            },
             Event::Text(text) | Event::Code(text) => {
                 if let Some(heading) = heading.as_mut() {
                     heading.push_str(&text);
                 }
-            }
+            },
             Event::End(TagEnd::Heading(HeadingLevel::H2)) => {
                 in_force = heading.take().is_some_and(|h| h.trim() == IN_FORCE);
                 has_in_force |= in_force;
-            }
+            },
             Event::Start(Tag::Link { dest_url, .. }) => {
                 let target = dest_url.split('#').next().unwrap_or_default();
                 let target = target.strip_prefix("./").unwrap_or(target).to_string();
@@ -357,8 +321,8 @@ fn check_index(adrs: &BTreeMap<u32, Adr>, index: &str) -> Vec<String> {
                 } else {
                     other_links.insert(target);
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 
@@ -403,9 +367,7 @@ fn check_design_docs(files: &[(String, String)]) -> Vec<String> {
             continue;
         };
         if let Some(other) = seen.insert(number, name) {
-            problems.push(format!(
-                "{path}: number {number:04} is also used by {other}"
-            ));
+            problems.push(format!("{path}: number {number:04} is also used by {other}"));
         }
         let status = front_matter(text).and_then(|fields| fields.get("status").copied());
         if !status.is_some_and(|s| DESIGN_STATUSES.contains(&s)) {
@@ -437,7 +399,7 @@ fn check_links(path: &Path, text: &str, exists: impl Fn(&Path) -> bool) -> Vec<S
             None => normalize(&dir.join(target)),
         };
         match resolved {
-            Some(resolved) if exists(&resolved) => {}
+            Some(resolved) if exists(&resolved) => {},
             Some(_) => problems.push(format!("{}: broken link `{dest_url}`", display(path))),
             None => problems.push(format!(
                 "{}: link `{dest_url}` points outside the repository",
@@ -454,9 +416,7 @@ fn local_target(dest: &str) -> Option<&str> {
     let target = dest.split(['#', '?']).next().unwrap_or_default();
     let has_scheme = target.split_once(':').is_some_and(|(scheme, _)| {
         scheme.starts_with(|c: char| c.is_ascii_alphabetic())
-            && scheme
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'))
+            && scheme.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'))
     });
     (!target.is_empty() && !has_scheme).then_some(target)
 }
@@ -467,12 +427,12 @@ fn normalize(path: &Path) -> Option<PathBuf> {
     let mut resolved = PathBuf::new();
     for component in path.components() {
         match component {
-            Component::CurDir => {}
+            Component::CurDir => {},
             Component::ParentDir => {
                 if !resolved.pop() {
                     return None;
                 }
-            }
+            },
             Component::Normal(part) => resolved.push(part),
             Component::RootDir | Component::Prefix(_) => return None,
         }
@@ -485,9 +445,7 @@ mod tests {
     use super::*;
 
     fn adr(number: u32, status: &str, supersedes: Option<&str>) -> (String, String) {
-        let supersedes = supersedes
-            .map(|s| format!("supersedes: {s}\n"))
-            .unwrap_or_default();
+        let supersedes = supersedes.map(|s| format!("supersedes: {s}\n")).unwrap_or_default();
         (
             format!("{number:04}-decision.md"),
             format!("---\nstatus: {status}\n{supersedes}---\n\n# ADR-{number:04}: Decision\n"),
@@ -533,16 +491,10 @@ mod tests {
     #[test]
     fn adr_statuses() {
         assert_eq!(AdrStatus::parse("accepted"), Some(AdrStatus::Accepted));
-        assert_eq!(
-            AdrStatus::parse("superseded by ADR-0007"),
-            Some(AdrStatus::SupersededBy(7))
-        );
+        assert_eq!(AdrStatus::parse("superseded by ADR-0007"), Some(AdrStatus::SupersededBy(7)));
         assert_eq!(AdrStatus::parse("superseded by 7"), None);
         assert_eq!(AdrStatus::parse("provisional"), None);
-        assert_eq!(
-            AdrStatus::SupersededBy(7).to_string(),
-            "superseded by ADR-0007"
-        );
+        assert_eq!(AdrStatus::SupersededBy(7).to_string(), "superseded by ADR-0007");
     }
 
     #[test]
@@ -651,18 +603,9 @@ mod tests {
     fn design_docs() {
         let files = [
             ("TEMPLATE.md".to_string(), String::new()),
-            (
-                "0001-bootstrap.md".to_string(),
-                "---\nstatus: implemented\n---\n".to_string(),
-            ),
-            (
-                "0007-feature.md".to_string(),
-                "---\nstatus: done\n---\n".to_string(),
-            ),
-            (
-                "0008-feature.md".to_string(),
-                "# No front matter\n".to_string(),
-            ),
+            ("0001-bootstrap.md".to_string(), "---\nstatus: implemented\n---\n".to_string()),
+            ("0007-feature.md".to_string(), "---\nstatus: done\n---\n".to_string()),
+            ("0008-feature.md".to_string(), "# No front matter\n".to_string()),
             ("feature.md".to_string(), String::new()),
         ];
         let problems = check_design_docs(&files);
@@ -697,9 +640,8 @@ Uses [a reference][ref].
 [fenced](ignored.md)
 ```
 ";
-        let problems = check_links(Path::new("docs/guides/workflow.md"), text, |p| {
-            existing.contains(p)
-        });
+        let problems =
+            check_links(Path::new("docs/guides/workflow.md"), text, |p| existing.contains(p));
         assert_eq!(
             problems,
             [

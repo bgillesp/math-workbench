@@ -1,3 +1,8 @@
+# Same as Cargo.toml, so rustfmt run directly on a file parses it the way `cargo fmt` does.
+edition = "2024"
 style_edition = "2024"
+match_block_trailing_comma = true
 use_field_init_shorthand = true
-use_try_shorthand = true
+use_small_heuristics = "Max"
+# Keep the default for arrays, so lists of structured items stay one per line.
+array_width = 60

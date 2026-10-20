@@ -10,8 +10,10 @@ on:
 permissions:
   contents: read
 
+# A new push to a PR cancels its stale run. Each commit on main gets its own group, so its run
+# always finishes and leaves a status and cache.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
 env:

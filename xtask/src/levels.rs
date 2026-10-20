@@ -27,10 +27,8 @@ struct Crate {
 }
 
 pub(crate) fn run(root: &Path) -> CheckResult {
-    let metadata = MetadataCommand::new()
-        .manifest_path(root.join("Cargo.toml"))
-        .no_deps()
-        .exec()?;
+    let metadata =
+        MetadataCommand::new().manifest_path(root.join("Cargo.toml")).no_deps().exec()?;
     let crates_dir = metadata.workspace_root.join("crates");
     let members = metadata.workspace_packages();
     let member_names: HashSet<&str> = members.iter().map(|p| p.name.as_str()).collect();
@@ -80,7 +78,7 @@ fn check(crates: &[Crate]) -> Vec<String> {
                     krate.name
                 )),
                 // A lower level is fine, and a missing level is reported for that crate.
-                Some(_) => {}
+                Some(_) => {},
                 None => problems.push(format!(
                     "{} has a {kind} on {dep}, which is outside crates/ and has no level",
                     krate.name

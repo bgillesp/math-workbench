@@ -4,9 +4,14 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Wait a week after each release, so a malicious release is likely caught and yanked first.
+    # Security updates aren't delayed.
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: chore
       include: scope
+    labels: [kind/chore]
     groups:
       cargo:
         patterns: ["*"]
@@ -14,9 +19,12 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: chore
       include: scope
+    labels: [kind/chore]
     groups:
       github-actions:
         patterns: ["*"]

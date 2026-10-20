@@ -4,12 +4,12 @@ Closes #
 
 ## Review notes
 
-## Definition of done
+What to look at first, and anything surprising.
 
-- [ ] `just ci` passes
-- [ ] Public items are documented
-- [ ] Tests cover the acceptance criteria
-- [ ] Living docs are updated
-- [ ] `docs/wip/` is empty
-- [ ] The design doc status is set (major changes)
-- [ ] Any new dependency or `unsafe` code is justified above
+## Tests and docs
+
+How the tests cover the acceptance criteria, and which living docs changed.
+
+## Dependencies and `unsafe`
+
+New dependencies or `unsafe` code, each with its justification.

@@ -107,7 +107,7 @@ changes:
 5. **Merge.** Open a PR with `Closes #N`. It then goes through CI, AI review, and human review,
    and is squash-merged into `main`.
 
-**Definition of done** (in AGENTS.md and the PR template):
+**Definition of done** (in AGENTS.md and the workflow guide):
 - `just ci` passes.
 - Public items are documented.
 - Tests cover the acceptance criteria.
@@ -326,7 +326,7 @@ CI calls the same recipes.
 | Workflow | Trigger | Runs |
 |---|---|---|
 | `ci.yml` | Non-draft PRs to `main`, and pushes to `main` | `just ci` on Linux |
-| `audit.yml` | Weekly, and PRs touching `Cargo.lock` | `cargo deny check advisories` (new advisories appear without code changes) |
+| `audit.yml` | Weekly, manual, and PRs touching `Cargo.lock` or `deny.toml` | `cargo deny check advisories` (new advisories appear without code changes) |
 | `extended.yml` | Weekly, manual, and before releases | Build and tests on macOS and Windows, extended property tests, a short fuzz run, benchmarks, mutation testing |
 
 - **Draft PRs skip CI.** Work in progress stays in draft, and marking a PR ready runs the checks.

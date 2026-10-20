@@ -38,28 +38,28 @@ fn main() -> ExitCode {
         "doctor" => {
             doctor::run(&root);
             return ExitCode::SUCCESS;
-        }
+        },
         _ => {
             eprintln!("{USAGE}");
             return ExitCode::from(2);
-        }
+        },
     };
     match result {
         Ok(problems) if problems.is_empty() => {
             println!("{command}: ok");
             ExitCode::SUCCESS
-        }
+        },
         Ok(problems) => {
             for problem in &problems {
                 eprintln!("error: {problem}");
             }
             eprintln!("{command}: {} problem(s)", problems.len());
             ExitCode::FAILURE
-        }
+        },
         Err(err) => {
             eprintln!("{command}: {err}");
             ExitCode::FAILURE
-        }
+        },
     }
 }
 

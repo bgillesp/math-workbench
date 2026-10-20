@@ -1,8 +1,8 @@
 # cargo-deny configuration: https://embarkstudios.github.io/cargo-deny/
 #
 # `just deny` checks bans, licenses, and sources on every PR. `just audit` checks advisories, run
-# by audit.yml weekly and on PRs that touch Cargo.lock, so a newly published advisory doesn't
-# fail unrelated PRs.
+# by audit.yml weekly and on PRs that touch Cargo.lock or deny.toml, so a newly published
+# advisory doesn't fail unrelated PRs.
 
 [graph]
 all-features = true

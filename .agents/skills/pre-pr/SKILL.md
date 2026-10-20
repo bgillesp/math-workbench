@@ -19,6 +19,7 @@ order, fixing what you can and reporting what you can't.
 5. Empty `docs/wip/`, moving each note to its home using the
    [branch notes table](../../../docs/guides/workflow.md#branch-notes).
 6. For a major change, set the design doc's status to `implemented`.
-7. Draft the PR title in Conventional Commits form, scoped by crate, and a description with a
-   summary, `Closes #N`, review notes, and a justification for any new dependency or `unsafe`
-   code. Show both to the developer.
+7. Draft the PR title in Conventional Commits form, scoped by crate, and a description following
+   the [PR template](../../../.github/pull_request_template.md). Leave out "Tests and docs" and
+   "Dependencies and `unsafe`" when they don't apply. Show the title and description to the
+   developer.
