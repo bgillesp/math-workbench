@@ -72,7 +72,7 @@ Run everything through `just`. `just --list` shows every recipe.
   refer to them with `name.workspace = true`.
 - A new crate goes in `crates/<name>/`, inherits the workspace package settings and lints
   (`[lints] workspace = true`), and declares `[package.metadata.mw] level = N`. It depends only
-  on crates at strictly lower levels.
+  on other crates in `crates/` at strictly lower levels.
 - Every public item has a doc comment, and each crate's `lib.rs` opens with `//!` docs on its
   purpose.
 - Clippy runs at `pedantic`. Fix warnings rather than allowing them. A workspace-wide allow goes

@@ -16,13 +16,16 @@ crate to run on. Its scope is set by the crate-structure ADR.
 ### `xtask`
 
 Repository checks, run through `just`: dependency levels, docs consistency, and branch notes.
-It's tooling rather than part of the application, so it has no level.
+It's tooling rather than part of the application, so it has no level. Its dependencies stay
+minimal, with `lexopt` rather than `clap` for arguments, so it builds quickly however large the
+application's dependency tree grows.
 
 ## Invariants
 
 **Dependency levels.** Each crate in `crates/` declares `[package.metadata.mw] level = N` and
 depends only on crates at strictly lower levels, counting dev- and build-dependencies.
-`cargo xtask check-levels` enforces this.
+Workspace crates outside `crates/`, such as `xtask`, have no level, so nothing in `crates/` may
+depend on them. `cargo xtask check-levels` enforces both rules.
 
 **Unsafe code.** `unsafe` is denied workspace-wide. A module that needs it, such as FFI or GPU
 code, opts out locally with a justification, and every `unsafe` block documents why it's sound.

@@ -16,6 +16,7 @@ mw-math = { path = "crates/mw-math" }
 
 # External crates
 cargo_metadata = "0.23.1"
+lexopt = "0.3.2"
 pulldown-cmark = { version = "0.13.4", default-features = false }
 
 [workspace.lints.rust]

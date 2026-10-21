@@ -9,6 +9,7 @@ publish.workspace = true
 
 [dependencies]
 cargo_metadata.workspace = true
+lexopt.workspace = true
 pulldown-cmark.workspace = true
 
 [lints]
