@@ -5,9 +5,9 @@ status: draft
 # Title
 
 <!--
-Copy to NNNN-short-title.md, where NNNN is the GitHub issue number. A human developer accepts
-the doc (status: accepted) before implementation starts. Set the status to implemented in the PR
-that completes the work; the doc is frozen from then on.
+Copy to docs/design/NNNN-short-title.md, where NNNN is the GitHub issue number. A human developer
+accepts the doc (status: accepted) before implementation starts. Set the status to implemented in
+the PR that completes the work; the doc is frozen from then on.
 -->
 
 ## Context

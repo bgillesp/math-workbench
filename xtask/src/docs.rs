@@ -25,9 +25,7 @@ const ADR_DIR: &str = "docs/architecture/decisions";
 const DESIGN_DIR: &str = "docs/design";
 
 /// Files in the ADR directory that aren't ADRs.
-const ADR_OTHER_FILES: &[&str] = &["README.md", "TEMPLATE.md"];
-/// Files in the design doc directory that aren't design docs.
-const DESIGN_OTHER_FILES: &[&str] = &["TEMPLATE.md"];
+const ADR_OTHER_FILES: &[&str] = &["README.md"];
 
 const DESIGN_STATUSES: &[&str] = &["draft", "accepted", "implemented", "abandoned"];
 
@@ -481,9 +479,6 @@ fn check_design_docs(files: &[(String, String)]) -> Vec<Problem> {
     let mut problems = Vec::new();
     let mut seen: HashMap<u32, &str> = HashMap::new();
     for (name, text) in files {
-        if DESIGN_OTHER_FILES.contains(&name.as_str()) {
-            continue;
-        }
         let path = format!("{DESIGN_DIR}/{name}");
         let Some(number) = doc_number(name) else {
             problems.push(Problem::new(path, ProblemKind::BadDesignName));
@@ -765,6 +760,7 @@ mod tests {
         assert_eq!(
             check_design_docs(&files),
             [
+                in_design("TEMPLATE.md", ProblemKind::BadDesignName),
                 in_design(
                     "0001-other.md",
                     ProblemKind::DuplicateDesignNumber {

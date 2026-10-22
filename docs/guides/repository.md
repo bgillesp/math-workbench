@@ -146,7 +146,7 @@ in `.cargo/config.toml`, usually from a recipe. `cargo xtask --help` lists its c
 |---|---|---|
 | `check-levels` | [Dependency levels](#dependency-levels) | `just check-repo` |
 | `check-docs` | ADRs, design docs, and relative links | `just check-repo` |
-| `check-wip` | `docs/wip/` holds nothing but its README | `just ci` |
+| `check-wip` | `docs/wip/` is empty or missing | `just ci` |
 | `doctor` | Missing tools, or a broken skills symlink | `just setup` |
 
 Each check prints an `error:` line for each problem, naming the file or crate to fix, and exits

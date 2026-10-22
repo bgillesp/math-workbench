@@ -15,7 +15,8 @@ changes, and what to read before different kinds of work.
 | Glossary | [`glossary.md`](glossary.md) | Living | PR review |
 | Guides | [`guides/`](guides/) | Living | PR review |
 | API docs | `//!` and `///` in source | Living; `missing_docs` enforces coverage | PR review |
-| Branch notes | [`wip/`](wip/README.md) | Branch only; emptied before merge | None |
+| Templates | [`templates/`](templates/) | Living | PR review |
+| Branch notes | `wip/` | Branch only; removed before merge | None |
 
 When code disagrees with an ADR, the architecture overview, or an accepted design doc, stop and
 report the mismatch rather than deciding which one is right.
@@ -42,6 +43,6 @@ record of what was built and why), or `abandoned`.
 | Changing the checks, CI, or agent tooling | The [repository guide](guides/repository.md) |
 | Writing or changing tests | The [development guide](guides/development.md#testing) |
 | Changing a crate | Its `lib.rs` docs, and the [ADRs in force](architecture/decisions/README.md) for its area |
-| Planning a major change | The [design doc template](design/TEMPLATE.md) and the ADRs in force |
-| Proposing an architecture decision | The [ADR index](architecture/decisions/README.md) and [template](architecture/decisions/TEMPLATE.md) |
-| Continuing work on a branch | Its [branch notes](wip/README.md) |
+| Planning a major change | The [design doc template](templates/design-doc.md) and the ADRs in force |
+| Proposing an architecture decision | The [ADR index](architecture/decisions/README.md) and [template](templates/adr.md) |
+| Continuing work on a branch | Its branch notes in `wip/` |

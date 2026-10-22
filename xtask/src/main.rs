@@ -45,7 +45,7 @@ impl Command {
         match self {
             Self::CheckLevels => "each crate depends only on crates at strictly lower levels",
             Self::CheckDocs => "ADRs, design docs, and relative links are consistent",
-            Self::CheckWip => "docs/wip/ holds nothing but its README",
+            Self::CheckWip => "docs/wip/ is empty or missing",
             Self::Doctor => "warn about missing tools or a broken skills symlink",
         }
     }

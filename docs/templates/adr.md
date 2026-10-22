@@ -6,7 +6,8 @@ date: YYYY-MM-DD
 # ADR-NNNN: Decision title
 
 <!--
-Copy to NNNN-short-title.md with the next unused number, and add it to the index in README.md.
+Copy to docs/architecture/decisions/NNNN-short-title.md with the next unused number, and add it to
+the index in that directory's README.md.
 
 To replace an earlier decision, add `supersedes: ADR-NNNN` to the front matter. When this ADR is
 accepted, change the old ADR's status to `superseded by ADR-NNNN` and move it to History in the

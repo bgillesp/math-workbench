@@ -43,7 +43,7 @@ and open a draft PR early.
 
 1. **Design.** For major changes, draft a design doc from the issue at
 `docs/design/NNNN-short-title.md`, where NNNN is the issue number, starting from the
-[template](../design/TEMPLATE.md). The acceptance criteria of the design must be concrete enough to
+[template](../templates/design-doc.md). The acceptance criteria of the design must be concrete enough to
 turn into tests. A human developer reviews and accepts it before implementation starts. If the work
 requires changing a decision, a superseding ADR is accepted first.
 

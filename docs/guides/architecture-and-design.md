@@ -33,6 +33,16 @@ creating a superseding ADR.  ADRs are approved and merged in their own PR. Apart
 and the status change when it's superseded, an accepted ADR is never edited. Agents draft a new ADR
 only when a human developer asks for one.
 
+Examples of such decisions are the wire type system and serialization versioning. A question that's
+still open stays in an issue until it's decided, and a choice that's local or easy to reverse
+belongs in a design doc.
+
+ADRs live in `docs/architecture/decisions/`, are numbered in sequence, and are cited as `ADR-0003`.
+Start a new one from the [ADR template](../templates/adr.md) with the next unused number. A
+superseding ADR restates whatever still holds from the one it replaces, so the current decision for
+an area can be read from one document. The [ADR index](../architecture/decisions/README.md) lists
+the ADRs in force by area, and [docs/README.md](../README.md#statuses) lists the statuses.
+
 ## Design Documents
 
 Development work which implements a major feature or codebase change begins with the creation and

@@ -1,4 +1,4 @@
-//! `check-wip`: `docs/wip/` holds nothing but its README, so branch notes don't reach `main`.
+//! `check-wip`: `docs/wip/` is empty or missing, so branch notes don't reach `main`.
 
 use std::fs;
 use std::path::Path;
@@ -23,7 +23,6 @@ pub(crate) fn run(root: &Path) -> CheckResult {
 fn check(names: &[String]) -> Vec<String> {
     names
         .iter()
-        .filter(|name| *name != "README.md")
         .map(|name| {
             format!(
                 "{WIP_DIR}/{name}: move branch notes to their permanent homes before merge \
@@ -38,15 +37,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn readme_alone_passes() {
-        assert_eq!(check(&["README.md".to_string()]), Vec::<String>::new());
+    fn empty_directory_passes() {
+        assert_eq!(check(&[]), Vec::<String>::new());
     }
 
     #[test]
-    fn notes_fail() {
+    fn every_file_fails() {
         let names = ["README.md".to_string(), "plan.md".to_string()];
         let problems = check(&names);
-        assert_eq!(problems.len(), 1);
-        assert!(problems[0].starts_with("docs/wip/plan.md:"));
+        assert_eq!(problems.len(), 2);
+        assert!(problems[0].starts_with("docs/wip/README.md:"));
+        assert!(problems[1].starts_with("docs/wip/plan.md:"));
     }
 }
