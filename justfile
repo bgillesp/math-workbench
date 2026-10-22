@@ -40,9 +40,8 @@ deny:
 audit:
     cargo deny check advisories
 
-# Check dependency levels and docs consistency
+# Check docs consistency
 check-repo:
-    cargo xtask check-levels
     cargo xtask check-docs
 
 # Run every CI check except the branch-notes check; use while working

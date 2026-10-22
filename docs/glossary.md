@@ -26,6 +26,3 @@ before merge.
 
 **Design doc.** The plan for one major change, accepted before implementation and frozen once
 implemented. Named by issue number, as in `docs/design/0042-typed-wire-validation.md`.
-
-**Level.** A crate's position in the dependency order, declared as `[package.metadata.mw] level`.
-A crate depends only on crates at strictly lower levels. Unrelated to layers in the domain model.

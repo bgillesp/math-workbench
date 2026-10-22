@@ -12,4 +12,5 @@ How the tests cover the acceptance criteria, and which living docs changed.
 
 ## Dependencies and `unsafe`
 
-New dependencies or `unsafe` code, each with its justification.
+New dependencies, including between workspace crates, and `unsafe` code, each with its
+justification.

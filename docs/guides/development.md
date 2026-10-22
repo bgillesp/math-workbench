@@ -43,9 +43,9 @@ and open a draft PR early.
 
 1. **Design.** For major changes, draft a design doc from the issue at
 `docs/design/NNNN-short-title.md`, where NNNN is the issue number, starting from the
-[template](../templates/design-doc.md). The acceptance criteria of the design must be concrete enough to
-turn into tests. A human developer reviews and accepts it before implementation starts. If the work
-requires changing a decision, a superseding ADR is accepted first.
+[template](../templates/design-doc.md). The acceptance criteria of the design must be concrete
+enough to turn into tests. A human developer reviews and accepts it before implementation starts.
+If the work requires changing a decision, a superseding ADR is accepted first.
 
 2. **Tests.** For major and standard changes, write failing tests as a separate commit. Tests for
 major changes are derived from the design doc's acceptance criteria, and for standard changes from
@@ -157,7 +157,8 @@ history linear.
   change requires.
 - `docs/wip/` is empty.
 - The design doc status is set (major changes).
-- Any new dependency or `unsafe` code is justified in the PR.
+- Any new dependency, including one between workspace crates, and any `unsafe` code is justified
+  in the PR.
 
 The `pre-pr` skill walks through this list before a PR is marked ready.
 

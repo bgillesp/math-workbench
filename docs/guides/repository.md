@@ -60,7 +60,7 @@ Every command is a recipe in the [justfile](../../justfile).
 | `just doc` | `cargo doc --no-deps`, with `RUSTDOCFLAGS="-D warnings"` |
 | `just deny` | `cargo deny check bans licenses sources` |
 | `just audit` | `cargo deny check advisories` |
-| `just check-repo` | `cargo xtask check-levels` and `cargo xtask check-docs` |
+| `just check-repo` | `cargo xtask check-docs` |
 | `just check` | `fmt-check`, `lint`, `test`, `doc`, `deny`, and `check-repo` |
 | `just ci` | `check`, then `cargo xtask check-wip` |
 
@@ -93,33 +93,21 @@ Bump the toolchain by hand, in its own PR.
 A new crate is a major change, so it follows an accepted design doc.
 
 1. Create `crates/mw-<name>/` with a manifest modeled on `crates/mw-math/Cargo.toml`: the
-   inherited package settings, a `description`, `[lints] workspace = true`, and a level.
+   inherited package settings, a `description`, and `[lints] workspace = true`.
 2. Open `src/lib.rs` with `//!` docs on the crate's purpose.
 3. Add a path entry to `[workspace.dependencies]` in the root manifest, so other crates can
    depend on it with `mw-<name>.workspace = true`.
-4. Add the crate to the architecture overview's codemap, in level order.
+4. Add the crate to the architecture overview's codemap, after the crates it depends on.
 
 A human developer creates the crate's `area/` label.
 
-### Dependency levels
+### Dependencies between crates
 
-Each crate in `crates/` declares its level in its manifest, as a non-negative integer:
-
-```toml
-[package.metadata.mw]
-level = 0
-```
-
-A crate may depend only on crates at strictly lower levels, so the workspace can be drawn top to
-bottom by level. Every kind of dependency counts, including dev- and build-dependencies, so
-shared test helpers sit below the crates whose tests use them. Workspace crates outside
-`crates/`, such as `xtask`, have no level, and nothing in `crates/` may depend on them. The
-crate-structure ADR will set the actual decomposition. The term is "level" rather than "layer",
-which has its own meaning in the domain model.
-
-`cargo xtask check-levels` reads levels and dependencies from `cargo metadata`. It reports a crate
-with no valid level, a dependency on a crate at the same or a higher level, and a dependency on a
-workspace crate outside `crates/`.
+The crate-structure ADR will describe how the workspace is organized. A new dependency of one
+workspace crate on another is justified in its PR, like an external one. A rule about which crates
+may depend on what is enforced only once it matters: `cargo-deny` can restrict an external crate
+to named dependents with `wrappers` in `deny.toml`, and a small `xtask` check can cover a rule
+between workspace crates.
 
 ## Lints, formatting, and `unsafe`
 
@@ -144,7 +132,6 @@ in `.cargo/config.toml`, usually from a recipe. `cargo xtask --help` lists its c
 
 | Command | Checks | Run by |
 |---|---|---|
-| `check-levels` | [Dependency levels](#dependency-levels) | `just check-repo` |
 | `check-docs` | ADRs, design docs, and relative links | `just check-repo` |
 | `check-wip` | `docs/wip/` is empty or missing | `just ci` |
 | `doctor` | Missing tools, or a broken skills symlink | `just setup` |
@@ -167,9 +154,9 @@ The statuses are listed in [docs/README.md](../README.md#statuses).
 
 Each command is a module in `xtask/src/`, listed in `Command::ALL` in `main.rs`, which also
 generates the usage text. A check keeps its file and process I/O in a `run` function, and its
-logic in a pure `check` function that the unit tests call directly. The level and docs checks
-record problems as enum values and format them as messages only at the end, so tests compare
-exact results. A new check gets a recipe under `check-repo` if it should run while working, or
+logic in a pure `check` function that the unit tests call directly. The docs check records
+problems as enum values and formats them as messages only at the end, so tests compare exact
+results. A new check gets a recipe under `check-repo` if it should run while working, or
 under `ci` if, like `check-wip`, it checks the state of a finished branch.
 
 `xtask` keeps its dependencies few, with `lexopt` rather than `clap` for arguments and

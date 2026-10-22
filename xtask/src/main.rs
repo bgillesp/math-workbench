@@ -5,7 +5,6 @@
 
 mod docs;
 mod doctor;
-mod levels;
 mod wip;
 
 use std::error::Error;
@@ -18,23 +17,16 @@ type CheckResult = Result<Vec<String>, Box<dyn Error>>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Command {
-    CheckLevels,
     CheckDocs,
     CheckWip,
     Doctor,
 }
 
 impl Command {
-    const ALL: [Self; 4] = [
-        Self::CheckLevels,
-        Self::CheckDocs,
-        Self::CheckWip,
-        Self::Doctor,
-    ];
+    const ALL: [Self; 3] = [Self::CheckDocs, Self::CheckWip, Self::Doctor];
 
     fn name(self) -> &'static str {
         match self {
-            Self::CheckLevels => "check-levels",
             Self::CheckDocs => "check-docs",
             Self::CheckWip => "check-wip",
             Self::Doctor => "doctor",
@@ -43,7 +35,6 @@ impl Command {
 
     fn summary(self) -> &'static str {
         match self {
-            Self::CheckLevels => "each crate depends only on crates at strictly lower levels",
             Self::CheckDocs => "ADRs, design docs, and relative links are consistent",
             Self::CheckWip => "docs/wip/ is empty or missing",
             Self::Doctor => "warn about missing tools or a broken skills symlink",
@@ -65,7 +56,6 @@ fn main() -> ExitCode {
     };
     let root = workspace_root();
     let result = match command {
-        Command::CheckLevels => levels::run(&root),
         Command::CheckDocs => docs::run(&root),
         Command::CheckWip => wip::run(&root),
         Command::Doctor => {
