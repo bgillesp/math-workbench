@@ -27,7 +27,7 @@ fn check(names: &[String]) -> Vec<String> {
         .map(|name| {
             format!(
                 "{WIP_DIR}/{name}: move branch notes to their permanent homes before merge \
-                 (see docs/guides/workflow.md#branch-notes)"
+                 (see docs/guides/development.md#branch-notes)"
             )
         })
         .collect()

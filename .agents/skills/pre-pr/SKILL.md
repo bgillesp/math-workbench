@@ -5,7 +5,7 @@ description: Walk through the definition of done before a pull request is marked
 
 # Pre-PR check
 
-Go through the [definition of done](../../../docs/guides/workflow.md#definition-of-done) in
+Go through the [definition of done](../../../docs/guides/development.md#definition-of-done) in
 order, fixing what you can and reporting what you can't.
 
 1. Run `just ci` and fix what it reports. Never weaken, delete, or `#[ignore]` an approved test
@@ -17,7 +17,7 @@ order, fixing what you can and reporting what you can't.
 4. Update the living docs the change affects: the architecture overview, glossary, crate docs,
    and guides.
 5. Empty `docs/wip/`, moving each note to its home using the
-   [branch notes table](../../../docs/guides/workflow.md#branch-notes).
+   [branch notes table](../../../docs/guides/development.md#branch-notes).
 6. For a major change, set the design doc's status to `implemented`.
 7. Draft the PR title in Conventional Commits form, scoped by crate, and a description following
    the [PR template](../../../.github/pull_request_template.md). Leave out "Tests and docs" and

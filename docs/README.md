@@ -38,8 +38,9 @@ record of what was built and why), or `abandoned`.
 | When you're… | Read |
 |---|---|
 | Getting oriented | The [architecture overview](architecture/overview.md), then the [glossary](glossary.md) |
-| Starting any change | The [workflow guide](guides/workflow.md) |
-| Writing or changing tests | The [testing guide](guides/testing.md) |
+| Starting any change | The [development guide](guides/development.md) |
+| Changing the checks, CI, or agent tooling | The [repository guide](guides/repository.md) |
+| Writing or changing tests | The [development guide](guides/development.md#testing) |
 | Changing a crate | Its `lib.rs` docs, and the [ADRs in force](architecture/decisions/README.md) for its area |
 | Planning a major change | The [design doc template](design/TEMPLATE.md) and the ADRs in force |
 | Proposing an architecture decision | The [ADR index](architecture/decisions/README.md) and [template](architecture/decisions/TEMPLATE.md) |

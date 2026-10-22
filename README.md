@@ -22,8 +22,8 @@ Development works on Linux, macOS, and Windows. On Windows, enable Developer Mod
 ## Contributing
 
 [docs/README.md](docs/README.md) explains how the repository and its docs are organized, and the
-[workflow guide](docs/guides/workflow.md) covers how changes are made. Coding agents start from
-[AGENTS.md](AGENTS.md).
+[development guide](docs/guides/development.md) covers how changes are made. Coding agents start
+from [AGENTS.md](AGENTS.md).
 
 ## License
 

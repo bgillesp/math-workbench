@@ -22,7 +22,7 @@ alternatives, and consequences. Cited as `ADR-0003`. See the
 before merge.
 
 **Change tier.** How much process a change needs: minor, standard, or major. See the
-[workflow guide](guides/workflow.md#change-tiers).
+[development guide](guides/development.md).
 
 **Design doc.** The plan for one major change, accepted before implementation and frozen once
 implemented. Named by issue number, as in `docs/design/0042-typed-wire-validation.md`.
