@@ -4,16 +4,17 @@ status: draft
 
 # ADR Directories and the `adr` Command
 
-> Design doc for the PR that closes [#3](https://github.com/bgillesp/math-workbench/issues/3).
+> Design doc for [#10](https://github.com/bgillesp/math-workbench/pull/10), which closes
+> [#3](https://github.com/bgillesp/math-workbench/issues/3).
 
 ## Context
 
-The [conventions design doc](../design/0002-repository-conventions.md) keeps each ADR's status in
-its front matter. Superseding an ADR means changing the old ADR's status to
-`superseded by ADR-NNNN`, adding `supersedes:` to the new one, and moving entries between sections
-of the hand-maintained index in `decisions/README.md`. `cargo xtask check-docs` then verifies
-that these copies agree. Most of its 15 ADR and index checks exist only to keep the copies
-consistent, and every supersession edits an accepted ADR in place.
+The [conventions design doc](0002-repository-conventions.md) keeps each ADR's status in its front
+matter. Superseding an ADR means changing the old ADR's status to `superseded by ADR-NNNN`, adding
+`supersedes:` to the new one, and moving entries between sections of the hand-maintained index in
+`decisions/README.md`. `cargo xtask check-docs` then verifies that these copies agree. Most of its
+15 ADR and index checks exist only to keep the copies consistent, and every supersession edits an
+accepted ADR in place.
 
 The only fact about an ADR that changes because of another ADR is whether it's still in force.
 This design records that fact as the ADR's location rather than in its contents. Front matter is
