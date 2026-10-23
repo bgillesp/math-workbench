@@ -99,7 +99,7 @@ supersedes: ADR-0001
 | `id` | Yes | `ADR-NNNN`, matching the number in the file name |
 | `title` | Yes | Double-quoted, non-empty |
 | `summary` | Yes | Double-quoted, non-empty, at most 300 characters; a sentence or two |
-| `date` | Yes | `YYYY-MM-DD`, the day the ADR was created |
+| `date` | Yes | `YYYY-MM-DD`, the local date the ADR was created |
 | `supersedes` | No | Comma-separated ids of the ADRs this one replaces |
 
 The front matter is a flat subset of YAML, so GitHub still renders it as a table. A plain YAML
@@ -272,9 +272,14 @@ fine.
 
 - The ADR schema, the tags file, the checks, the views, and `adr new` go in a new
   `xtask/src/adr.rs`. `docs.rs` keeps the design doc and link checks.
-- No new dependencies. The front matter subset is parsed by hand, `tags.yaml` is read with the
-  same parser, and today's date comes from `SystemTime` with a days-to-civil-date conversion, in
-  UTC.
+- No new dependencies. The front matter subset is parsed by hand, and `tags.yaml` is read with the
+  same parser.
+- Today's date is the local date. The standard library has no time zones, but
+  `git var GIT_COMMITTER_IDENT` ends with the current Unix time and the local UTC offset, and
+  `xtask` already runs `git`. Adding the offset to the time and converting the days to a civil
+  date gives the date. Git also honors `GIT_COMMITTER_DATE`, which lets a test pin the date. If
+  `git var` fails, such as when no git identity is configured, `adr new` uses the UTC date from
+  `SystemTime` and says so.
 - `main.rs` gains `adr`, which takes a subcommand. Like the top-level commands, the subcommands
   are listed in one place that also generates the usage text. `lexopt` parses each one's
   arguments, reading option values with `optional_value`, so only the attached form is accepted.
@@ -392,7 +397,7 @@ prose adds friction for little gain. A wrong citation is a typo to fix when it's
 `adr new`:
 
 - creates `active/NNNN-slug.md` with the next number across both directories, the derived slug,
-  the filled-in fields and heading, today's date, and an empty summary;
+  the filled-in fields and heading, today's local date, and an empty summary;
 - adds the ADR's entry to `tags.yaml`, keeping the entries sorted by id;
 - moves each superseded ADR to `superseded/` unchanged;
 - notes any tag that no other ADR uses, listing the existing tags;
@@ -411,7 +416,8 @@ Unit tests in `adr.rs` cover the front matter parser (quoting, continuation line
 of malformation), reading `tags.yaml`, each check (comparing the full list of problems, as
 `docs.rs` does), the views against expected Markdown for a small set of ADRs, argument parsing
 for each subcommand, number parsing, slug derivation, next-number selection, wrapping (a line
-that fits, a break at the width, and a word longer than the line), and the date conversion,
+that fits, a break at the width, and a word longer than the line), reading the time and offset
+from git's output (including negative offsets and a time near midnight), and the date conversion,
 including the epoch and leap days.
 
 Tests of `adr new` run against a directory under `std::env::temp_dir()`, since `xtask` avoids a
