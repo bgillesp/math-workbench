@@ -25,11 +25,12 @@ Changes are classified into one of the following complexity tiers. When the tier
 ## Starting work
 
 Each session takes one issue and does development on its own branch in its own git worktree, so
-several sessions can run in parallel. Name the branch `<issue-no>-<short-slug>`:
+several sessions can run in parallel. Name the branch `<issue-no>-<short-slug>`. Where the
+worktree goes is up to the developer's local setup:
 
 ```sh
 git fetch origin
-git worktree add ../math-workbench-42 -b 42-typed-wire-validation origin/main
+git worktree add <worktree-path> -b 42-typed-wire-validation origin/main
 ```
 
 Before changing a crate, read its `lib.rs` docs and the ADRs in force for its area, listed in the
