@@ -3,6 +3,7 @@
 //! Run through the `cargo xtask` alias, usually from a `just` recipe. Each check prints the
 //! problems it finds and exits with a failure status if there are any.
 
+mod adr;
 mod docs;
 mod doctor;
 mod ready;
