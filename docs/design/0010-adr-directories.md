@@ -276,10 +276,11 @@ fine.
   same parser.
 - Today's date is the local date. The standard library has no time zones, but
   `git var GIT_COMMITTER_IDENT` ends with the current Unix time and the local UTC offset, and
-  `xtask` already runs `git`. Adding the offset to the time and converting the days to a civil
-  date gives the date. Git also honors `GIT_COMMITTER_DATE`, which lets a test pin the date. If
-  `git var` fails, such as when no git identity is configured, `adr new` uses the UTC date from
-  `SystemTime` and says so.
+  `xtask` already runs `git`. `adr new` reads just those last two fields, adds the offset to the
+  time, and converts the days to a civil date. It passes a placeholder identity with
+  `-c user.name=xtask -c user.email=xtask`, since `git var` otherwise fails when no identity is
+  configured. Git also honors `GIT_COMMITTER_DATE`, which lets a test pin the date. If git can't
+  run at all, `adr new` uses the UTC date from `SystemTime` and says so.
 - `main.rs` gains `adr`, which takes a subcommand. Like the top-level commands, the subcommands
   are listed in one place that also generates the usage text. `lexopt` parses each one's
   arguments, reading option values with `optional_value`, so only the attached form is accepted.
