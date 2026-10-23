@@ -62,7 +62,7 @@ lints, CI, or repository checks to get a change through (see the
 `implemented`. Empty the branch notes in `docs/wip/`.
 
 5. **Merge.** Mark the PR ready for review. It goes through CI, an agent review pass, and human
-review, and is then squash-merged.
+review, and is then squash-merged with a [commit message](#commit-messages) written for the log.
 
 The design doc, the PR description, and the issue describe the problem and its solution as they
 finally stand, so keep revising them until the PR merges, as implementation and review turn things
@@ -140,8 +140,8 @@ If branch notes content is created without a clear home, ask the human developer
 
 ## Pull requests
 
-PRs are squash-merged, and the PR title and description become the commit on `main`, so write
-them for someone reading the history later.
+PRs are squash-merged into a single commit on `main`. The PR title becomes the commit's subject,
+and the description is written for reviewers.
 
 - **Title:** [Conventional Commits](https://www.conventionalcommits.org/), scoped by crate where one
   applies, as in `feat(mw-graph): validate wire types on connect`. Common types are `feat`, `fix`,
@@ -155,6 +155,21 @@ them for someone reading the history later.
 
 Branch protection on `main` requires CI to pass on a branch that's up to date with `main`, and keeps
 history linear.
+
+### Commit messages
+
+The squash commit gets its own message, written when the PR is merged, for someone reading
+`git log` later. Its subject is the PR title followed by the PR number, as in
+`feat(mw-graph): validate wire types on connect (#42)`. Its body is plain text wrapped at 72
+columns: a short summary of what the change does, calling out anything unusual that a reader
+scanning the log should notice, such as a new dependency, `unsafe` code, a breaking change, or a
+setting changed outside the diff. Inline code is fine, but leave out headings, links, and the
+review details that belong in the PR description.
+
+A human developer may ask you to draft the message for them to use when merging. Merge a PR
+yourself only when a human developer asks you to. Then draft the message, show it to them, and
+merge only once they approve it, with `gh pr merge <N> --squash --subject <subject>
+--body-file <file>`.
 
 ## Definition of done
 

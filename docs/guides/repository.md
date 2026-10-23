@@ -196,9 +196,11 @@ tests, fuzzing, benchmarks, and mutation testing will go here once there's code 
 These live in the repository settings rather than in files, and only a human developer changes
 them.
 
-PRs are squash-merged, with the PR title and description as the commit message, and branches are
-deleted after merge. A ruleset on `main` requires a PR and a passing `just ci` on a branch that's
-up to date with `main`, keeps history linear, and blocks force pushes and deletion.
+PRs are squash-merged, and branches are deleted after merge. The default squash message is the PR
+title alone, so the commit body starts empty and is written at merge time, as the
+[development guide](development.md#commit-messages) describes. A ruleset on `main` requires a PR
+and a passing `just ci` on a branch that's up to date with `main`, keeps history linear, and
+blocks force pushes and deletion.
 
 Workflows may use only GitHub's own actions and an allowlist, currently `taiki-e/install-action`
 and `Swatinem/rust-cache`. GitHub also requires every action to be pinned to a full commit SHA,
