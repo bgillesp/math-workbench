@@ -1,5 +1,5 @@
 ---
-status: draft
+status: accepted
 ---
 
 # ADR Directories and the `adr` Command
