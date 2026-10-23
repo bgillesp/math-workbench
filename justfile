@@ -44,9 +44,9 @@ audit:
 check-repo:
     cargo xtask check-docs
 
-# Run every CI check except the branch-notes check; use while working
+# Run every CI check except the merge-readiness check; use while working
 check: fmt-check lint test doc deny check-repo
 
 # Run exactly what CI runs; must pass before a PR is ready for review
 ci: check
-    cargo xtask check-wip
+    cargo xtask check-ready

@@ -5,7 +5,7 @@
 
 mod docs;
 mod doctor;
-mod wip;
+mod ready;
 
 use std::error::Error;
 use std::fmt::Write;
@@ -18,17 +18,17 @@ type CheckResult = Result<Vec<String>, Box<dyn Error>>;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Command {
     CheckDocs,
-    CheckWip,
+    CheckReady,
     Doctor,
 }
 
 impl Command {
-    const ALL: [Self; 3] = [Self::CheckDocs, Self::CheckWip, Self::Doctor];
+    const ALL: [Self; 3] = [Self::CheckDocs, Self::CheckReady, Self::Doctor];
 
     fn name(self) -> &'static str {
         match self {
             Self::CheckDocs => "check-docs",
-            Self::CheckWip => "check-wip",
+            Self::CheckReady => "check-ready",
             Self::Doctor => "doctor",
         }
     }
@@ -36,7 +36,7 @@ impl Command {
     fn summary(self) -> &'static str {
         match self {
             Self::CheckDocs => "ADRs, design docs, and relative links are consistent",
-            Self::CheckWip => "docs/wip/ is empty or missing",
+            Self::CheckReady => "no branch notes, and every design doc is implemented",
             Self::Doctor => "warn about missing tools or a broken skills symlink",
         }
     }
@@ -57,7 +57,7 @@ fn main() -> ExitCode {
     let root = workspace_root();
     let result = match command {
         Command::CheckDocs => docs::run(&root),
-        Command::CheckWip => wip::run(&root),
+        Command::CheckReady => ready::run(&root),
         Command::Doctor => {
             doctor::run(&root);
             return ExitCode::SUCCESS;

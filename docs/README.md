@@ -10,7 +10,7 @@ changes, and what to read before different kinds of work.
 | Vision | `docs/vision.md` | Rarely | Human developer |
 | Roadmap, priorities | GitHub Projects and Issues | Continuously | Human developer |
 | Decision records (ADRs) | [`architecture/decisions/`](architecture/decisions/README.md) | Never edited once accepted; replaced by a new ADR | Human developer; agents draft only on request |
-| Design docs | [`design/`](design/) | Frozen once implemented | Human developer, before implementation |
+| Design docs | [`design/`](design/) | Revised until the PR that implements them merges, then frozen | Human developer, before implementation |
 | Architecture overview | [`architecture/overview.md`](architecture/overview.md) | Updated in the PR that changes behavior | PR review |
 | Glossary | [`glossary.md`](glossary.md) | Living | PR review |
 | Guides | [`guides/`](guides/) | Living | PR review |
@@ -31,8 +31,10 @@ applies and has no replacement). An ADR that replaces another also says `superse
 Apart from typo and link fixes, the only edit an accepted ADR ever gets is the status change when
 it's superseded.
 
-A design doc is `draft`, `accepted` (approved for implementation), `implemented` (frozen as a
-record of what was built and why), or `abandoned`.
+A design doc is `draft`, `accepted` (approved for implementation), or `implemented` (describes
+what was built, set before merge). A design that isn't built never merges, since its closed PR is
+the record, so every design doc on `main` is `implemented`. `cargo xtask check-ready` checks this in
+`just ci`.
 
 ## Read this before…
 

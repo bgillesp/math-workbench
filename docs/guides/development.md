@@ -41,11 +41,12 @@ and open a draft PR early.
 
 ## Workflow
 
-1. **Design.** For major changes, draft a design doc from the issue at
-`docs/design/NNNN-short-title.md`, where NNNN is the issue number, starting from the
-[template](../templates/design-doc.md). The acceptance criteria of the design must be concrete
-enough to turn into tests. A human developer reviews and accepts it before implementation starts.
-If the work requires changing a decision, a superseding ADR is accepted first.
+1. **Design.** For major changes, draft a design doc from the issue in `docs/wip/`, starting from
+the [template](../templates/design-doc.md). Once the draft is workable, open a draft PR and move
+the doc to `docs/design/NNNN-short-title.md`, where NNNN is the PR number. The acceptance criteria
+of the design must be concrete enough to turn into tests. A human developer reviews and accepts it
+before implementation starts. If the work requires changing a decision, a superseding ADR is
+accepted first.
 
 2. **Tests.** For major and standard changes, write failing tests as a separate commit. Tests for
 major changes are derived from the design doc's acceptance criteria, and for standard changes from
@@ -62,6 +63,13 @@ lints, CI, or repository checks to get a change through (see the
 
 5. **Merge.** Mark the PR ready for review. It goes through CI, an agent review pass, and human
 review, and is then squash-merged.
+
+The design doc, the PR description, and the issue describe the problem and its solution as they
+finally stand, so keep revising them until the PR merges, as implementation and review turn things
+up. A short note on an approach that was tried and dropped can go in the design doc or the PR
+description. Changes to the design's decisions or acceptance criteria, and to approved tests, need
+a human developer's approval, since the tests are what the work has to satisfy. The design doc is
+frozen once the PR merges.
 
 ## Testing
 
@@ -108,7 +116,7 @@ As a non-comprehensive baseline, stop and ask a human developer when:
 
 - the issue or design doc is ambiguous, or the work is growing beyond its scope;
 - code disagrees with an ADR, the architecture overview, or an accepted design doc;
-- an approved test looks wrong; or
+- an approved test looks wrong, or the design's decisions or acceptance criteria need to change; or
 - the change seems to need a new architecture decision, a new dependency, or `unsafe` code.
 
 ## Branch notes
@@ -156,7 +164,7 @@ history linear.
 - Living docs are updated: the architecture overview, glossary, crate docs, and guides, as the
   change requires.
 - `docs/wip/` is empty.
-- The design doc status is set (major changes).
+- The design doc describes what was built, and its status is `implemented` (major changes).
 - Any new dependency, including one between workspace crates, and any `unsafe` code is justified
   in the PR.
 

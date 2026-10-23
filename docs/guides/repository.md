@@ -3,7 +3,7 @@
 How the repository maintains code quality and consistency: its layout, the Cargo workspace and its
 conventions, the checks behind `just ci`, CI and the GitHub settings around it, dependency policy,
 and agent tooling. Read it before changing any of these, or when a check fails and the reason
-isn't clear. The [conventions design doc](../design/0001-repository-conventions.md) records the
+isn't clear. The [conventions design doc](../design/0002-repository-conventions.md) records the
 reasoning as first planned. This guide describes the setup as it stands, and takes precedence
 where the two differ.
 
@@ -62,12 +62,12 @@ Every command is a recipe in the [justfile](../../justfile).
 | `just audit` | `cargo deny check advisories` |
 | `just check-repo` | `cargo xtask check-docs` |
 | `just check` | `fmt-check`, `lint`, `test`, `doc`, `deny`, and `check-repo` |
-| `just ci` | `check`, then `cargo xtask check-wip` |
+| `just ci` | `check`, then `cargo xtask check-ready` |
 
-Recipes cover the whole workspace with all features enabled. `just check` leaves out the
-branch-notes check, since a branch in progress is expected to have notes, and neither `check` nor
-`ci` runs `just audit`, which has its own workflow (see [CI](#ci)). On Windows, `just` runs
-recipes in PowerShell.
+Recipes cover the whole workspace with all features enabled. `just check` leaves out
+`check-ready`, since a branch in progress is expected to have branch notes and an unfinished
+design doc, and neither `check` nor `ci` runs `just audit`, which has its own workflow (see
+[CI](#ci)). On Windows, `just` runs recipes in PowerShell.
 
 ## Cargo workspace
 
@@ -133,7 +133,7 @@ in `.cargo/config.toml`, usually from a recipe. `cargo xtask --help` lists its c
 | Command | Checks | Run by |
 |---|---|---|
 | `check-docs` | ADRs, design docs, and relative links | `just check-repo` |
-| `check-wip` | `docs/wip/` is empty or missing | `just ci` |
+| `check-ready` | `docs/wip/` is empty or missing, and every design doc is `implemented` | `just ci` |
 | `doctor` | Missing tools, or a broken skills symlink | `just setup` |
 
 Each check prints an `error:` line for each problem, naming the file or crate to fix, and exits
@@ -154,10 +154,10 @@ The statuses are listed in [docs/README.md](../README.md#statuses).
 
 Each command is a module in `xtask/src/`, listed in `Command::ALL` in `main.rs`, which also
 generates the usage text. A check keeps its file and process I/O in a `run` function, and its
-logic in a pure `check` function that the unit tests call directly. The docs check records
-problems as enum values and formats them as messages only at the end, so tests compare exact
-results. A new check gets a recipe under `check-repo` if it should run while working, or
-under `ci` if, like `check-wip`, it checks the state of a finished branch.
+logic in a pure `check` function that the unit tests call directly. Problems are recorded as enum
+values and formatted as messages only at the end, so tests compare exact results. A new check gets
+a recipe under `check-repo` if it should run while working, or joins `check-ready` if it checks
+the state of a branch that's ready to merge.
 
 `xtask` keeps its dependencies few, with `lexopt` rather than `clap` for arguments and
 `pulldown-cmark` without default features, so it builds quickly however large the application's

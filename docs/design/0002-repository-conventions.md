@@ -4,11 +4,11 @@ status: implemented
 
 # Repository Structure and Development Conventions
 
-> Design doc for the repository bootstrap,
-> [#1](https://github.com/bgillesp/math-workbench/issues/1). It records the conventions as
-> planned at the start of development. The parts that stay current (layout, workflow, rules) are
-> maintained in [`AGENTS.md`](../../AGENTS.md), [`docs/README.md`](../README.md), and
-> [`docs/guides/`](../guides/), which take precedence where they differ from this doc.
+> Design doc for [#2](https://github.com/bgillesp/math-workbench/pull/2), the repository
+> bootstrap, which closes [#1](https://github.com/bgillesp/math-workbench/issues/1). The parts
+> that stay current (layout, workflow, rules) are maintained in [`AGENTS.md`](../../AGENTS.md),
+> [`docs/README.md`](../README.md), and [`docs/guides/`](../guides/), which take precedence where
+> they differ from this doc.
 
 Math Workbench is a Rust desktop application for working with mathematical objects in a dynamic
 and graphical environment.  The repository is designed to support efficient development using
@@ -45,19 +45,21 @@ placed so that a human developer's understanding of the system keeps pace with t
 repository as plain Markdown, and each kind of fact has a single home. Architecture decision
 records (ADRs) capture significant decisions and the alternatives that were weighed. An ADR is
 never edited once accepted; a changed decision gets a new ADR that supersedes the old one.
-Design docs record each major change as it was planned, and are frozen once it ships. The
+Design docs record each major change as it was built, and are frozen once its PR merges. The
 architecture overview, crate-level docs, and glossary describe the system as it currently stands,
 and are updated in the same pull request as the code. Working notes stay on their branch and are
-moved into these homes before merge. A short `AGENTS.md` maps all of this, so an agent loads only
-what a task needs. Someone reading the history years later finds the same record. When code and
-documentation disagree, agents report the mismatch instead of deciding which one is right.
+moved into these homes before merge. A short `AGENTS.md` holds what every session needs and points
+to guides for the rest, so an agent loads only what a task needs. Someone reading the history
+years later finds the same record. When code and documentation disagree, agents report the
+mismatch instead of deciding which one is right.
 
 **Rules that tools enforce.** Anything that matters is checked mechanically, because conventions
 written only in prose drift from one session to the next. A single command, `just ci`, runs
 formatting, strict lints, tests, documentation builds, and dependency auditing. It also checks
-that each crate depends only on crates at strictly lower levels of the architecture, and that the
-docs are internally consistent. CI runs the same command. Agent-specific skills and hooks, for
-Claude Code and Codex, are conveniences on top of these checks and never the only enforcement.
+that the docs are internally consistent, and that a branch is ready to merge: its notes are
+cleared and its design doc is complete. CI runs the same command. Agent-specific skills and
+hooks, for Claude Code and Codex, are conveniences on top of these checks and never the only
+enforcement.
 
 Most of this is standard practice for a well-run Rust project: a Cargo workspace, trunk-based
 development with squash merges and Conventional Commits, conventional ADRs, RFC-style design docs,
@@ -94,27 +96,33 @@ find too noisy, because agents resolve such warnings at little cost.
 Each session takes one issue on its own branch, in its own git worktree. For major
 changes:
 
-1. **Design.** A design doc (`docs/design/NNNN-*.md`) is drafted from the issue, citing the
-   relevant ADRs, and is accepted by a human developer after review. Acceptance criteria must be
-   concrete enough to turn into tests.
+1. **Design.** A design doc is drafted from the issue in `docs/wip/`. Once the draft is workable,
+   a draft PR is opened and the doc moves to `docs/design/NNNN-*.md`, numbered by the PR. A human
+   developer reviews and accepts it. Acceptance criteria must be concrete enough to turn into
+   tests.
 2. **Tests.** Failing tests are written from the acceptance criteria, as a separate commit, and a
    human developer reviews the test diff. This is the executable spec, and the most valuable
    review in the PR.
 3. **Implement** until the tests pass. Agents never weaken, delete, or `#[ignore]` an approved
    test. If a test looks wrong, they stop and flag it.
-4. **Document.** Update the architecture overview, glossary, and crate docs. Mark the design doc
-   `implemented`. Clear `docs/wip/`.
-5. **Merge.** Open a PR with `Closes #N`. It then goes through CI, AI review, and human review,
+4. **Document.** Update the architecture overview, glossary, and crate docs. Revise the design doc
+   to describe what was built, and mark it `implemented`. Clear `docs/wip/`.
+5. **Merge.** Mark the PR ready for review. It then goes through CI, AI review, and human review,
    and is squash-merged into `main`.
 
-**Definition of done** (in AGENTS.md and the workflow guide):
+The design doc, the PR description, and the issue are revised until the PR merges, so that they
+describe the problem and the solution as built. Changes to the design's decisions or acceptance
+criteria, and to approved tests, need a human developer's approval.
+
+**Definition of done** (in the development guide):
 - `just ci` passes.
 - Public items are documented.
 - Tests cover the acceptance criteria.
 - Living docs are updated.
 - `docs/wip/` is empty.
-- The design doc status is set.
-- Any new dependency or `unsafe` code is justified in the PR.
+- The design doc describes what was built, and is `implemented`.
+- Any new dependency, including one between workspace crates, and any `unsafe` code is justified
+  in the PR.
 
 ### Branch notes (`docs/wip/`)
 
@@ -150,11 +158,11 @@ If content keeps turning up that fits none of these, add a dedicated place for i
 | Vision | `docs/vision.md` | Rarely | Human developer |
 | Roadmap, priorities | GitHub Projects + Issues | Continuously | Human developer |
 | Decision records (ADRs) | `docs/architecture/decisions/NNNN-*.md` | Never edited once accepted; replaced by a new ADR | Human developer; agents draft only on request |
-| Design docs | `docs/design/NNNN-*.md` | Frozen once implemented | Human developer, before implementation |
+| Design docs | `docs/design/NNNN-*.md` | Revised until the PR that implements them merges, then frozen | Human developer, before implementation |
 | Architecture overview | `docs/architecture/overview.md` | Updated in the PR that changes behavior | PR review |
-| Glossary, guides | `docs/glossary.md`, `docs/guides/` | Living | PR review |
+| Glossary, guides, templates | `docs/glossary.md`, `docs/guides/`, `docs/templates/` | Living | PR review |
 | API docs | `//!` and `///` in source | Living; `missing_docs` enforces coverage | PR review |
-| Scratch | `docs/wip/` | Branch only | None |
+| Branch notes | `docs/wip/` | Branch only | None |
 
 ### Decision records
 
@@ -181,14 +189,17 @@ and referred to as `ADR-0003`, which keeps them distinct from design docs (`#42`
 
 ### Design docs
 
-Each major change gets one design doc, named after its GitHub issue
-(`docs/design/0042-typed-wire-validation.md`). Issues and PRs share one number sequence, so names
-never collide.
+Each major change gets one design doc, named after the PR that implements it
+(`docs/design/0042-typed-wire-validation.md`). The doc is drafted in `docs/wip/`, and moves into
+`docs/design/` once the draft PR exists and its number is known. Issues and PRs share one number
+sequence, so names never collide. Work too large for one PR is split into issues, each with its
+own PR and design doc.
 
 - **Sections:** Context (linking the issue and the ADRs it works under), Goals / Non-goals,
   Design, Alternatives considered, Acceptance criteria, Test plan.
-- **Status:** `draft`, `accepted`, `implemented`, or `abandoned`. Once implemented, the doc is
-  frozen: a record of what was built and why, given what was known at the time.
+- **Status:** `draft`, `accepted` (approved for implementation), or `implemented`. The doc is
+  revised until its PR merges, so it describes the problem and the solution as built, and it's
+  frozen from then on. A design that isn't built never merges, and its closed PR is the record.
 - **Changing a decision:** if a feature requires one, a superseding ADR is accepted before
   implementation starts.
 
@@ -197,8 +208,8 @@ never collide.
 - **`architecture/overview.md`** is a codemap: one paragraph per crate, plus the invariants that
   span crates. It's the first stop for anyone getting oriented, human or agent.
 - **Crate docs (`//!`)** hold per-crate detail, next to the code they describe.
-- **`glossary.md`** defines the project's overloaded terms (tile, wire, signal, layer, level,
-  frame, type) and its notation conventions.
+- **`glossary.md`** defines the project's overloaded terms (tile, wire, signal, layer, frame,
+  type) and its notation conventions.
 
 **Conflict rule.** If code disagrees with an ADR, the overview, or an accepted design doc, the
 agent stops and reports the mismatch. It doesn't decide on its own which one is right.
@@ -209,7 +220,7 @@ agent stops and reports the mismatch. It doesn't decide on its own which one is 
 
 ```
 .
-├── AGENTS.md                 # agent entry point: map, commands, hard rules (~100–150 lines)
+├── AGENTS.md                 # agent entry point: what every session needs, and the guides
 ├── CLAUDE.md                 # one line: @AGENTS.md
 ├── README.md                 # human entry point
 ├── Cargo.toml                # virtual workspace manifest
@@ -234,19 +245,19 @@ agent stops and reports the mismatch. It doesn't decide on its own which one is 
 │   └── ISSUE_TEMPLATE/       # issue forms (bug, feature), each applying its kind/* label
 ├── crates/                   # flat: one directory per crate, directory name == crate name
 │   └── mw-<name>/
-├── xtask/                    # repository checks (dependency levels, docs), run through just
+├── xtask/                    # repository checks (docs, merge readiness), run through just
 └── docs/
-    ├── README.md             # index: what lives where, status conventions, "read X when doing Y"
+    ├── README.md             # index: what lives where, statuses, "read X when doing Y"
     ├── vision.md             # why the project exists; rarely changes
     ├── glossary.md           # domain terms and notation
     ├── architecture/         # the current state of the system
     │   ├── overview.md       # codemap and invariants that span crates
     │   └── decisions/        # ADRs: numbered, never edited once accepted; README.md indexes them
     ├── design/               # one design doc per major change; historical
-    │   ├── TEMPLATE.md
-    │   └── NNNN-slug.md      # NNNN = GitHub issue number
-    ├── guides/               # living how-tos: workflow, testing, code conventions
-    └── wip/                  # branch-local scratch; only its README remains at merge
+    │   └── NNNN-slug.md      # NNNN = number of the PR that implements it
+    ├── templates/            # ADR and design doc templates
+    ├── guides/               # development, architecture and design, repository
+    └── wip/                  # branch notes; absent on main
 ```
 
 Development works on Linux, macOS, and Windows. Recipes in the `justfile` stay short calls into
@@ -266,12 +277,13 @@ when this happens.
 - **Pinned toolchain** in `rust-toolchain.toml`, bumped in its own PR. `rust-version` matches it.
   As an application, the project only needs to build with its pinned toolchain, so there's no
   older minimum supported Rust version (MSRV) to test.
-- **Strict dependency levels.** Each crate under `crates/` declares
-  `[package.metadata.mw] level = N`. It may depend only on crates at strictly lower levels, and
-  `cargo xtask check-levels` enforces this. The workspace can then be drawn top to bottom by
-  level. For example, `mw-math` sits at level 0 and `mw-app` at the top. The actual
-  decomposition belongs in a crate-structure ADR. "Level" is used rather than "layer", which
-  already has a meaning in the domain model.
+- **Dependencies between crates.** Cargo already rejects cycles of normal dependencies, and the
+  crate-structure ADR will describe how the workspace is organized. A new dependency of one
+  workspace crate on another is justified in its PR, like an external one. A specific rule about
+  which crates may depend on what is enforced once it matters, with `cargo-deny` `wrappers` for
+  an external crate or a small `xtask` check. An earlier draft gave each crate a declared level
+  and checked that it depended only on lower levels, but at this scale that added terminology and
+  machinery without catching anything review wouldn't.
 
 Lint baseline (CI runs with `-D warnings`):
 
@@ -318,8 +330,8 @@ Runner: `cargo nextest`, plus `cargo test --doc` for doctests.
 - nextest and doctests
 - `cargo doc`
 - `cargo deny check` for bans, licenses, and sources (advisories run in `audit.yml`)
-- the level and docs checks
-- the `docs/wip/`-empty check
+- the docs checks
+- `check-ready`: `docs/wip/` is empty or missing, and every design doc is `implemented`
 
 CI calls the same recipes.
 
@@ -327,7 +339,7 @@ CI calls the same recipes.
 |---|---|---|
 | `ci.yml` | Non-draft PRs to `main`, and pushes to `main` | `just ci` on Linux |
 | `audit.yml` | Weekly, manual, and PRs touching `Cargo.lock` or `deny.toml` | `cargo deny check advisories` (new advisories appear without code changes) |
-| `extended.yml` | Weekly, manual, and before releases | Build and tests on macOS and Windows, extended property tests, a short fuzz run, benchmarks, mutation testing |
+| `extended.yml` | Weekly, manual, and before releases | Build and tests on macOS and Windows; extended property tests, a short fuzz run, benchmarks, and mutation testing join it later |
 
 - **Draft PRs skip CI.** Work in progress stays in draft, and marking a PR ready runs the checks.
 - **macOS and Windows run in `extended.yml`**, not on every PR, while iteration is fast. Run it
@@ -338,7 +350,8 @@ CI calls the same recipes.
 - **`cargo-deny`** covers RustSec advisories, plus a license allowlist compatible with
   Apache-2.0, duplicate and banned crates, and allowed sources.
 - **Dependabot** runs weekly for `cargo` and `github-actions`, with updates grouped.
-  Third-party actions are pinned to commit SHAs.
+- **Actions** are pinned to full commit SHAs, and only GitHub's own actions and an allowlist may
+  run.
 
 ## Agent tooling
 
@@ -354,29 +367,23 @@ by a hook or skill. Harness features are conveniences, so keeping two sets of ad
 | Permissions | n/a | `.claude/settings.json` allowlist | `.codex/config.toml` as needed |
 
 Starting set:
-- **Skills:** `start-feature` (creates the branch, worktree, wip notes, and a draft PR),
-  `new-design-doc`, and `pre-pr` (walks through the definition of done). Each is a thin wrapper
-  around a guide in `docs/guides/`.
+- **Skills:** `pre-pr` (walks through the definition of done). `start-feature` (creates the
+  branch, worktree, and draft PR, and names the design doc for the PR) and `new-design-doc` are
+  to follow. Each is a thin wrapper around a guide in `docs/guides/`.
 - **Hook:** run `just fmt` after file edits.
 
 ### AGENTS.md
 
-Short, written as instructions, and kept current:
+Short, and limited to what every session needs:
 
-1. What the project is (2–3 sentences, with a link to the vision).
-2. The working model: where review happens, and when to stop and ask a human developer.
-3. Commands: `just ci`, `just test`, `just fmt`, and so on.
-4. Repository map: crates and docs, one line each.
-5. Change tiers and feature flow, linking `docs/guides/workflow.md`.
-6. Hard rules:
-   - Don't weaken approved tests.
-   - Follow the conflict rule.
-   - Don't edit accepted ADRs.
-   - Flag any new dependency or `unsafe` code.
-   - Don't change Project fields.
-   - Keep `docs/wip/` on branches.
-7. Context map. For example: "Before changing crate X, read its `lib.rs` docs." "Before changing
-   the file format, read the serialization ADR in force."
+1. What the project is, and how work is organized around issues, PRs, and the Project.
+2. The rules that hold in every session: keep to your own worktree, report mismatches between
+   code and docs, and never edit an accepted ADR.
+3. The repository's design, its most important parts, and the common `just` commands.
+4. An overview of the application.
+5. Pointers to three guides in `docs/guides/`: development (workflow, testing, branch notes, PRs,
+   and the definition of done), architecture and design (the docs and ADRs), and repository
+   (layout, checks, CI, settings, and agent tooling).
 
 Use nested `AGENTS.md` files only for crates with unusual local rules, such as unsafe GPU code.
 
@@ -384,12 +391,12 @@ Use nested `AGENTS.md` files only for crates with unusual local rules, such as u
 
 ### Bootstrap order
 
-1. Open a bootstrap issue (#1). Accept this doc and move it to
-   `docs/design/0001-repository-conventions.md`.
+1. Open a bootstrap issue (#1). Accept this doc, named for its PR as
+   `docs/design/0002-repository-conventions.md`.
 2. **Skeleton:**
    - `rust-toolchain.toml`, workspace `Cargo.toml`, `.gitignore`, `.editorconfig`,
      `rustfmt.toml`, `deny.toml`, `justfile`.
-   - `xtask` with the level and docs checks.
+   - `xtask` with the docs and merge-readiness checks.
    - A `just setup` recipe that installs the cargo tools the checks use (`cargo-nextest`,
      `cargo-deny`, `cargo-insta`).
    - One placeholder crate, so every check has something to run on.
@@ -397,7 +404,7 @@ Use nested `AGENTS.md` files only for crates with unusual local rules, such as u
    - `docs/README.md`, the design doc and ADR templates, the ADR index, and a starter glossary.
    - `AGENTS.md` and `CLAUDE.md`.
    - PR and issue templates.
-   - Workflow and testing guides.
+   - The development, architecture and design, and repository guides.
 4. **Agent tooling:**
    - `.agents/skills/` (start with `pre-pr`).
    - The `.claude/skills` symlink and `settings.json`. Confirm Claude Code follows the symlink;

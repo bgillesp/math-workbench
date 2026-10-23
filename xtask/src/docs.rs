@@ -22,12 +22,12 @@ use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use crate::{CheckResult, display};
 
 const ADR_DIR: &str = "docs/architecture/decisions";
-const DESIGN_DIR: &str = "docs/design";
+pub(crate) const DESIGN_DIR: &str = "docs/design";
 
 /// Files in the ADR directory that aren't ADRs.
 const ADR_OTHER_FILES: &[&str] = &["README.md"];
 
-const DESIGN_STATUSES: &[&str] = &["draft", "accepted", "implemented", "abandoned"];
+const DESIGN_STATUSES: &[&str] = &["draft", "accepted", "implemented"];
 
 /// The index section that must list exactly the accepted ADRs.
 const IN_FORCE: &str = "In force";
@@ -149,15 +149,14 @@ impl fmt::Display for ProblemKind {
                 write!(f, "ADR-{number:04} is {status}, so it belongs below `## {IN_FORCE}`")
             },
             Self::BadDesignName => f.write_str(
-                "design doc file names look like `0042-short-title.md`, where 0042 is the GitHub \
-                 issue number",
+                "design doc file names look like `0042-short-title.md`, where 0042 is the number \
+                 of the PR that implements it",
             ),
             Self::DuplicateDesignNumber { number, other } => {
                 write!(f, "number {number:04} is also used by {other}")
             },
             Self::BadDesignStatus => f.write_str(
-                "front matter needs `status:` set to `draft`, `accepted`, `implemented`, or \
-                 `abandoned`",
+                "front matter needs `status:` set to `draft`, `accepted`, or `implemented`",
             ),
             Self::BrokenLink { dest } => write!(f, "broken link `{dest}`"),
             Self::LinkOutsideRepository { dest } => {
@@ -187,7 +186,7 @@ pub(crate) fn run(root: &Path) -> CheckResult {
 }
 
 /// The name and contents of each file directly inside `dir`.
-fn read_files(dir: &Path) -> std::io::Result<Vec<(String, String)>> {
+pub(crate) fn read_files(dir: &Path) -> std::io::Result<Vec<(String, String)>> {
     let mut files = Vec::new();
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
@@ -313,7 +312,7 @@ fn doc_number(file_name: &str) -> Option<u32> {
 }
 
 /// The `key: value` fields of a leading `---` block, or `None` if there isn't one.
-fn front_matter(text: &str) -> Option<HashMap<&str, &str>> {
+pub(crate) fn front_matter(text: &str) -> Option<HashMap<&str, &str>> {
     let mut lines = text.lines();
     if lines.next()? != "---" {
         return None;
