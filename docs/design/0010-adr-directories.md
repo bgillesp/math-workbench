@@ -194,12 +194,18 @@ tags:
 - ADR-0003: Wire types: checked on connect (graph/wires)
 ```
 
-`--verbose` adds each ADR's summary on an indented line below its entry, in either form:
+`--verbose` adds each ADR's summary below its entry, in either form, wrapped at 100 columns with a
+two-space indent so it stays part of the list item:
 
 ```markdown
 - ADR-0003: Wire types: checked on connect (graph/wires)
-  Every wire has a static type, and connecting two ports checks compatibility, so a mistyped connection is rejected before anything is evaluated.
+  Every wire has a static type, and connecting two ports checks compatibility, so a mistyped
+  connection is rejected before anything is evaluated.
 ```
+
+The width is fixed because the standard library can't query the terminal's, and 100 columns
+matches the repository's Markdown. The wrap is greedy, counts characters rather than display
+width, and gives a word longer than the line a line of its own.
 
 `adr tags` lists each tag in `tags.yaml` with the number of ADRs in force that use it, sorted
 alphabetically:
@@ -213,10 +219,10 @@ alphabetically:
 `adr print` prints each ADR's file in full, preceded by a line giving its path and whether it's in
 force or superseded, and by which ADR. A number with no ADR is an error.
 
-Entries aren't wrapped, and with no ADRs, `adr list` and `adr tags` print "None yet." The views
-don't run the checks. An ADR whose front matter can't be read is left out with a warning on stderr
-naming its file, an ADR with no entry in `tags.yaml` is listed without tags, and `check-docs`
-reports the details.
+Entries aren't wrapped, since they're short. With no ADRs, `adr list` and `adr tags` print "None
+yet." The views don't run the checks. An ADR whose front matter can't be read is left out with a
+warning on stderr naming its file, an ADR with no entry in `tags.yaml` is listed without tags, and
+`check-docs` reports the details.
 
 ### Creating and superseding ADRs
 
@@ -372,7 +378,8 @@ prose adds friction for little gain. A wrong citation is a typo to fix when it's
 - `--tags` groups the ADRs under every tag, alphabetically, and `--tags=<tags>` under just the
   given tags, in order, with an ADR appearing under each of its tags;
 - `--tags=<tags>` naming a tag that no ADR uses fails, listing the existing tags;
-- `--verbose` adds each ADR's summary below its entry, flat or grouped;
+- `--verbose` adds each ADR's summary below its entry, flat or grouped, wrapped at 100 columns with
+  a two-space indent;
 - `adr tags` prints each tag with the number of ADRs in force that use it;
 - `adr list` and `adr tags` print "None yet." when there are no ADRs;
 - `adr print` prints each named ADR in full after a line giving its path and status, and fails
@@ -403,8 +410,9 @@ The docs listed above describe the new layout, the tags, and the commands.
 Unit tests in `adr.rs` cover the front matter parser (quoting, continuation lines, and each kind
 of malformation), reading `tags.yaml`, each check (comparing the full list of problems, as
 `docs.rs` does), the views against expected Markdown for a small set of ADRs, argument parsing
-for each subcommand, number parsing, slug derivation, next-number selection, and the date
-conversion, including the epoch and leap days.
+for each subcommand, number parsing, slug derivation, next-number selection, wrapping (a line
+that fits, a break at the width, and a word longer than the line), and the date conversion,
+including the epoch and leap days.
 
 Tests of `adr new` run against a directory under `std::env::temp_dir()`, since `xtask` avoids a
 `tempfile` dependency.
