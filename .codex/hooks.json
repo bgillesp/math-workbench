@@ -1,0 +1,18 @@
+{
+  "description": "Format code after edits.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "just fmt",
+            "statusMessage": "Formatting",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}

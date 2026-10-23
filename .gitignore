@@ -1,0 +1,8 @@
+/target/
+
+# Local agent settings
+.claude/settings.local.json
+
+# insta snapshots awaiting review
+*.snap.new
+*.pending-snap

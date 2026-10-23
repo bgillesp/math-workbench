@@ -1,0 +1,32 @@
+name: Audit
+
+# Advisories run separately from CI so a newly published advisory doesn't fail unrelated PRs.
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths: [Cargo.lock, deny.toml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  advisories:
+    name: cargo deny advisories
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: just,cargo-deny
+      - run: just audit
