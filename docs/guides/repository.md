@@ -33,7 +33,7 @@ stay short calls into `cargo` or `xtask`, and anything with real logic is writte
 ├── .cargo/config.toml        # the `cargo xtask` alias
 ├── .agents/skills/           # skills, one directory each
 ├── .claude/
-│   ├── settings.json         # permissions and the format hook
+│   ├── settings.json         # permissions, the format hook, and attribution
 │   └── skills -> ../.agents/skills
 ├── .codex/hooks.json         # the format hook
 ├── .github/
@@ -196,9 +196,11 @@ tests, fuzzing, benchmarks, and mutation testing will go here once there's code 
 These live in the repository settings rather than in files, and only a human developer changes
 them.
 
-PRs are squash-merged, with the PR title and description as the commit message, and branches are
-deleted after merge. A ruleset on `main` requires a PR and a passing `just ci` on a branch that's
-up to date with `main`, keeps history linear, and blocks force pushes and deletion.
+PRs are squash-merged, and branches are deleted after merge. The default squash message is the PR
+title alone, so the commit body starts empty and is written at merge time, as the
+[development guide](development.md#commit-messages) describes. A ruleset on `main` requires a PR
+and a passing `just ci` on a branch that's up to date with `main`, keeps history linear, and
+blocks force pushes and deletion.
 
 Workflows may use only GitHub's own actions and an allowlist, currently `taiki-e/install-action`
 and `Swatinem/rust-cache`. GitHub also requires every action to be pinned to a full commit SHA,
@@ -250,7 +252,8 @@ primary harness, and Codex is also supported.
 Both harnesses run `just fmt` after file edits. Codex runs the hook only once it's been trusted
 in Codex. When changing a hook, change both adapters. The Claude Code permissions allow `just`,
 the cargo commands that build, check, and inspect, and read-only `gh` commands for issues, PRs,
-and the Project, so these run without prompting. Personal settings go in
+and the Project, so these run without prompting. The settings also leave Claude Code's attribution
+lines out of commit messages and PR descriptions. Personal settings go in
 `.claude/settings.local.json`, which git ignores.
 
 Skills live in `.agents/skills/`, one directory each. Keep each skill a thin wrapper around a
