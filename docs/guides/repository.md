@@ -33,7 +33,7 @@ stay short calls into `cargo` or `xtask`, and anything with real logic is writte
 ├── .cargo/config.toml        # the `cargo xtask` alias
 ├── .agents/skills/           # skills, one directory each
 ├── .claude/
-│   ├── settings.json         # permissions and the format hook
+│   ├── settings.json         # permissions, the format hook, and PR attribution
 │   └── skills -> ../.agents/skills
 ├── .codex/hooks.json         # the format hook
 ├── .github/
@@ -252,8 +252,9 @@ primary harness, and Codex is also supported.
 Both harnesses run `just fmt` after file edits. Codex runs the hook only once it's been trusted
 in Codex. When changing a hook, change both adapters. The Claude Code permissions allow `just`,
 the cargo commands that build, check, and inspect, and read-only `gh` commands for issues, PRs,
-and the Project, so these run without prompting. Personal settings go in
-`.claude/settings.local.json`, which git ignores.
+and the Project, so these run without prompting. The settings also leave Claude Code's "Generated
+with Claude Code" line out of PR descriptions, since commit trailers already credit agent work.
+Personal settings go in `.claude/settings.local.json`, which git ignores.
 
 Skills live in `.agents/skills/`, one directory each. Keep each skill a thin wrapper around a
 guide, so the procedure lives in docs that people read too. The `pre-pr` skill walks through the
