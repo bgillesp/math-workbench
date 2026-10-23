@@ -194,17 +194,17 @@ tags:
 - ADR-0003: Wire types: checked on connect (graph/wires)
 ```
 
-`--verbose` adds each ADR's summary below its entry, in either form, wrapped at 100 columns with a
+`--verbose` adds each ADR's summary below its entry, in either form, wrapped at 80 columns with a
 two-space indent so it stays part of the list item:
 
 ```markdown
 - ADR-0003: Wire types: checked on connect (graph/wires)
-  Every wire has a static type, and connecting two ports checks compatibility, so a mistyped
-  connection is rejected before anything is evaluated.
+  Every wire has a static type, and connecting two ports checks compatibility,
+  so a mistyped connection is rejected before anything is evaluated.
 ```
 
-The width is fixed because the standard library can't query the terminal's, and 100 columns
-matches the repository's Markdown. The wrap is greedy, counts characters rather than display
+The width is fixed because the standard library can't query the terminal's, and 80 columns reads
+well in a typical terminal. The wrap is greedy, counts characters rather than display
 width, and gives a word longer than the line a line of its own.
 
 `adr tags` lists each tag in `tags.yaml` with the number of ADRs in force that use it, sorted
@@ -384,7 +384,7 @@ prose adds friction for little gain. A wrong citation is a typo to fix when it's
 - `--tags` groups the ADRs under every tag, alphabetically, and `--tags=<tags>` under just the
   given tags, in order, with an ADR appearing under each of its tags;
 - `--tags=<tags>` naming a tag that no ADR uses fails, listing the existing tags;
-- `--verbose` adds each ADR's summary below its entry, flat or grouped, wrapped at 100 columns with
+- `--verbose` adds each ADR's summary below its entry, flat or grouped, wrapped at 80 columns with
   a two-space indent;
 - `adr tags` prints each tag with the number of ADRs in force that use it;
 - `adr list` and `adr tags` print "None yet." when there are no ADRs;
