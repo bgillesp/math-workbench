@@ -21,7 +21,9 @@ const SUMMARY_WIDTH: usize = 80;
 /// The directory an ADR is in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Dir {
+    /// `active/`, for ADRs in force.
     Active,
+    /// `superseded/`, for ADRs a later ADR replaces.
     Superseded,
 }
 
@@ -38,17 +40,22 @@ impl Dir {
 /// A file in `active/` or `superseded/`, as read from disk.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct AdrFile {
+    /// The directory the file is in.
     dir: Dir,
     /// The file name, such as `0003-wire-types-checked-on-connect.md`.
     name: String,
+    /// The file's contents.
     text: String,
 }
 
 /// An ADR's front matter, once it has been read.
 #[derive(Debug, PartialEq, Eq)]
 struct FrontMatter {
+    /// The number in `id`.
     number: u32,
+    /// The title, unquoted.
     title: String,
+    /// The summary, unquoted, with continuation lines folded into single spaces.
     summary: String,
     /// The date the ADR was created, as `YYYY-MM-DD`.
     date: String,
@@ -59,10 +66,13 @@ struct FrontMatter {
 /// An ADR with everything the views need.
 #[derive(Debug)]
 struct Adr {
+    /// The ADR's number.
     number: u32,
     /// The repository-relative path of the ADR's file.
     path: String,
+    /// The title from the front matter.
     title: String,
+    /// The summary from the front matter.
     summary: String,
     /// The ADR's tags, in the order `tags.yaml` lists them.
     tags: Vec<String>,
@@ -77,7 +87,9 @@ struct Adr {
 /// The ADRs the views can show, and warnings about files they had to leave out.
 #[derive(Debug)]
 struct Loaded {
+    /// The ADRs whose front matter could be read, by number.
     adrs: Vec<Adr>,
+    /// A message for each file that was left out.
     warnings: Vec<String>,
 }
 
@@ -86,6 +98,7 @@ struct Loaded {
 pub(crate) struct Problem {
     /// The repository-relative path of the file to fix.
     path: String,
+    /// What's wrong with it.
     kind: ProblemKind,
 }
 
@@ -182,6 +195,7 @@ enum Grouping {
 struct ListOptions {
     /// Include superseded ADRs.
     all: bool,
+    /// Whether and how to group the entries by tag.
     grouping: Grouping,
     /// Add each ADR's summary below its entry.
     verbose: bool,
@@ -190,7 +204,9 @@ struct ListOptions {
 /// The arguments of `adr new`.
 #[derive(Debug, PartialEq, Eq)]
 struct NewArgs {
+    /// The new ADR's title.
     title: String,
+    /// The new ADR's tags, in the order given.
     tags: Vec<String>,
     /// The numbers of the ADRs the new one supersedes.
     supersedes: Vec<u32>,
@@ -199,9 +215,13 @@ struct NewArgs {
 /// An `adr` subcommand and its arguments.
 #[derive(Debug, PartialEq, Eq)]
 enum AdrCommand {
+    /// `adr list`, with its options.
     List(ListOptions),
+    /// `adr tags`.
     Tags,
+    /// `adr print`, with the numbers of the ADRs to print.
     Print(Vec<u32>),
+    /// `adr new`, with its arguments.
     New(NewArgs),
 }
 
@@ -234,21 +254,18 @@ struct Created {
 /// Why `adr new` refused to create an ADR. It changes nothing when it refuses.
 #[derive(Debug, PartialEq, Eq)]
 enum NewError {
+    /// The title is empty.
     EmptyTitle,
     /// The title contains `"` or `\`.
     TitleQuoteOrBackslash,
+    /// No tags were given.
     NoTags,
-    BadTag {
-        tag: String,
-    },
+    /// A tag isn't lowercase letters, digits, and hyphens.
+    BadTag { tag: String },
     /// The ADR to supersede doesn't exist.
-    SupersedesMissing {
-        number: u32,
-    },
+    SupersedesMissing { number: u32 },
     /// The ADR to supersede is already in `superseded/`.
-    AlreadySuperseded {
-        number: u32,
-    },
+    AlreadySuperseded { number: u32 },
     /// Reading or writing a file failed.
     Io(String),
 }
@@ -319,7 +336,8 @@ fn wrap(_text: &str, _width: usize, _indent: &str) -> String {
     todo!()
 }
 
-/// The Unix time and UTC offset, in seconds, at the end of `git var GIT_COMMITTER_IDENT`'s output.
+/// The Unix time and the UTC offset in seconds, from the end of `git var GIT_COMMITTER_IDENT`'s
+/// output.
 fn parse_git_ident(_line: &str) -> Option<(i64, i32)> {
     todo!()
 }
@@ -431,7 +449,10 @@ mod tests {
     }
 
     /// A scratch repository under the system temp directory, removed when dropped.
-    struct TempRoot(PathBuf);
+    struct TempRoot(
+        /// The root directory.
+        PathBuf,
+    );
 
     impl TempRoot {
         fn new(name: &str) -> Self {
