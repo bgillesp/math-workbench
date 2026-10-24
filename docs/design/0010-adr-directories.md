@@ -270,8 +270,12 @@ fine.
 
 ### Implementation notes
 
-- The ADR schema, the tags file, the checks, the views, and `adr new` go in a new
-  `xtask/src/adr.rs`. `docs.rs` keeps the design doc and link checks.
+- The work goes in a new `xtask/src/adr/` module. `yaml.rs` reads the flat subset of YAML,
+  `records.rs` reads the ADR files, their front matter, and `tags.yaml`, and `check.rs` holds the
+  ADR checks, which `check-docs` calls from `docs.rs`. `list.rs`, `tags.rs`, `print.rs`, and
+  `new.rs` each hold one subcommand, with its arguments, output, and tests, and `mod.rs`
+  dispatches to them. A test-only `fixtures.rs` holds the sample ADRs and scratch directories the
+  modules' tests share. `docs.rs` keeps the design doc and link checks.
 - No new dependencies. The front matter subset is parsed by hand, and `tags.yaml` is read with the
   same parser.
 - Today's date is the local date. The standard library has no time zones, but
@@ -413,13 +417,13 @@ The docs listed above describe the new layout, the tags, and the commands.
 
 ## Test plan
 
-Unit tests in `adr.rs` cover the front matter parser (quoting, continuation lines, and each kind
-of malformation), reading `tags.yaml`, each check (comparing the full list of problems, as
-`docs.rs` does), the views against expected Markdown for a small set of ADRs, argument parsing
-for each subcommand, number parsing, slug derivation, next-number selection, wrapping (a line
-that fits, a break at the width, and a word longer than the line), reading the time and offset
-from git's output (including negative offsets and a time near midnight), and the date conversion,
-including the epoch and leap days.
+Unit tests in each module of `xtask/src/adr/` cover the flat YAML reader (quoting, continuation
+lines, and each kind of malformation), the front matter schema, reading `tags.yaml`, each check
+(comparing the full list of problems, as `docs.rs` does), the views against expected Markdown for a
+small set of ADRs, argument parsing for each subcommand, number parsing, slug derivation,
+next-number selection, wrapping (a line that fits, a break at the width, and a word longer than the
+line), reading the time and offset from git's output (including negative offsets and a time near
+midnight), and the date conversion, including the epoch and leap days.
 
 Tests of `adr new` run against a directory under `std::env::temp_dir()`, since `xtask` avoids a
 `tempfile` dependency.
