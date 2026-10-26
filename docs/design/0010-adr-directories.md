@@ -4,8 +4,9 @@ status: accepted
 
 # ADR Directories and the `adr` Command
 
-> Design doc for [#10](https://github.com/bgillesp/math-workbench/pull/10), which closes
-> [#3](https://github.com/bgillesp/math-workbench/issues/3).
+> Design doc for [#10](https://github.com/bgillesp/math-workbench/pull/10), part of
+> [#3](https://github.com/bgillesp/math-workbench/issues/3). A follow-up PR finishes the work and
+> closes #3.
 
 ## Context
 
@@ -291,10 +292,16 @@ fine.
 - `adr` runs as `cargo xtask adr` directly, without a `just` recipe. `just` joins variadic
   arguments with spaces, so a quoted title would arrive in pieces, while `cargo xtask` passes
   arguments through the same way in every shell. Recipes stay for the checks that `just ci` runs.
+- The work lands in two PRs. #10 adds the `adr` module and command, runs the new checks in
+  `check-docs` alongside the old ADR and index checks, and updates the docs. A follow-up PR, which
+  closes #3, removes the old checks from `docs.rs` with their tests, and removes
+  `decisions/README.md`, which they read. It also adds `tags.yaml`, which the old checks would
+  report as a misnamed ADR. Until then both sets of checks pass, since no ADRs exist.
 
 ### Docs to update
 
-- `docs/architecture/decisions/README.md` is removed, and `tags.yaml` is added with no entries.
+- In the follow-up PR, `docs/architecture/decisions/README.md` is removed, and `tags.yaml` is
+  added with no entries.
 - `docs/templates/adr.md`: the body `adr new` copies, with a comment saying to create ADRs with
   `cargo xtask adr new` rather than by copying the template.
 - `docs/guides/architecture-and-design.md`: the ADR section gains the directories, the tags, the
