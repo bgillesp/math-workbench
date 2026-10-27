@@ -3,8 +3,8 @@
 use std::io;
 use std::path::Path;
 
-use super::AdrFile;
 use super::check::ProblemKind;
+use super::{AdrFile, Dir};
 
 /// An ADR's front matter, once it has been read.
 #[derive(Debug, PartialEq, Eq)]
@@ -21,25 +21,29 @@ pub(super) struct FrontMatter {
     pub(super) supersedes: Vec<u32>,
 }
 
-/// An ADR with everything the views need.
+/// An ADR, as read from its file and `tags.yaml`.
 #[derive(Debug)]
 pub(super) struct Adr {
-    /// The ADR's number.
-    pub(super) number: u32,
-    /// The repository-relative path of the ADR's file.
+    /// The directory the file is in.
+    pub(super) dir: Dir,
+    /// The repository-relative path of the file.
     pub(super) path: String,
-    /// The title from the front matter.
-    pub(super) title: String,
-    /// The summary from the front matter.
-    pub(super) summary: String,
+    /// The ADR's front matter.
+    pub(super) front_matter: FrontMatter,
     /// The ADR's tags, in the order `tags.yaml` lists them.
     pub(super) tags: Vec<String>,
-    /// Whether the ADR is in `superseded/`.
-    pub(super) superseded: bool,
-    /// The number of the ADR that supersedes this one, if any.
-    pub(super) successor: Option<u32>,
-    /// The file's full contents, for `adr print`.
+    /// The numbers of the ADRs whose `supersedes` lists this one: none for an ADR in force, and
+    /// one for a superseded ADR once `check-docs` passes.
+    pub(super) successors: Vec<u32>,
+    /// The file's full contents, front matter included.
     pub(super) text: String,
+}
+
+impl Adr {
+    /// Whether the ADR is in force, which its directory decides.
+    pub(super) fn is_active(&self) -> bool {
+        self.dir == Dir::Active
+    }
 }
 
 /// The ADRs the views can show, and warnings about files they had to leave out.
@@ -158,7 +162,7 @@ mod tests {
         let strings =
             |items: &[&str]| -> Vec<String> { items.iter().map(ToString::to_string).collect() };
         let numbers_and_tags: Vec<(u32, Vec<String>)> =
-            loaded.adrs.iter().map(|adr| (adr.number, adr.tags.clone())).collect();
+            loaded.adrs.iter().map(|adr| (adr.front_matter.number, adr.tags.clone())).collect();
         assert_eq!(
             numbers_and_tags,
             [
