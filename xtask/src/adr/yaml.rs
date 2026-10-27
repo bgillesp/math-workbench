@@ -50,7 +50,9 @@ pub(super) fn read(text: &str) -> (Vec<Entry>, Vec<Error>) {
     // The key of a quoted value whose closing quote hasn't been reached, and its lines so far.
     let mut open: Option<(String, Vec<String>)> = None;
     for line in text.lines() {
+        // Quoted value is open.
         if let Some((key, mut parts)) = open.take() {
+            // Continued by a nonempty indented line.
             if line.starts_with([' ', '\t']) && !line.trim().is_empty() {
                 let line = line.trim();
                 if let Some((last, rest)) = line.split_once('"') {
@@ -64,21 +66,27 @@ pub(super) fn read(text: &str) -> (Vec<Entry>, Vec<Error>) {
             }
             errors.push(Error::UnterminatedQuote { key });
         }
+        // Skip empty lines outside of a quote continuation.
         if line.trim().is_empty() {
             continue;
         }
+        // Read new key/value pair.
         let Some((key, value)) = split_entry(line) else {
             errors.push(Error::MalformedLine { line: line.trim().to_string() });
             continue;
         };
+        // Check for start of new quoted value.
         let Some(quoted) = value.strip_prefix('"') else {
+            // Plain value.
             entries.push(Entry { key, value: Value::Plain(value.to_string()) });
             continue;
         };
         match quoted.split_once('"') {
+            // Quote terminated on this line.
             Some((content, rest)) => {
                 push_quoted(key, &[content.to_string()], rest, &mut entries, &mut errors);
             },
+            // Quote unterminated, possibly continued on later lines.
             None => open = Some((key, vec![quoted.trim_end().to_string()])),
         }
     }
@@ -110,10 +118,12 @@ fn push_quoted(
     entries: &mut Vec<Entry>,
     errors: &mut Vec<Error>,
 ) {
+    // Additional text appears after the closing quote, or any quoted text contains a backslash.
     if !rest.trim().is_empty() || parts.iter().any(|part| part.contains('\\')) {
         errors.push(Error::QuoteOrBackslash { key });
         return;
     }
+    // Join the non-empty parts with spaces.
     let parts: Vec<&str> =
         parts.iter().map(String::as_str).filter(|part| !part.is_empty()).collect();
     entries.push(Entry { key, value: Value::Quoted(parts.join(" ")) });
