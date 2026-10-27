@@ -10,6 +10,7 @@ use super::new::{Args, TEMPLATE};
 use super::records::{Adr, load};
 use super::{ADR_DIR, AdrFile, Dir};
 
+/// An ADR file in `dir` with the given name and contents.
 pub(super) fn file(dir: Dir, name: &str, text: &str) -> AdrFile {
     AdrFile { dir, name: name.to_string(), text: text.to_string() }
 }
