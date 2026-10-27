@@ -216,6 +216,10 @@ mod tests {
             [problem(path, NotQuoted { key: key("title") })]
         );
         assert_eq!(
+            check_one("\"T\"", "Unquoted."),
+            [problem(path, NotQuoted { key: key("summary") })]
+        );
+        assert_eq!(
             check_one("\"T\"", "\"A \"quoted\" word.\""),
             [problem(path, QuoteOrBackslash { key: key("summary") })]
         );
