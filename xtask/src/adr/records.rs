@@ -71,9 +71,9 @@ pub(super) fn load(_files: Vec<AdrFile>, _tags: Option<&str>) -> Loaded {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adr::ADR_DIR;
     use crate::adr::Dir::{Active, Superseded};
-    use crate::adr::fixtures::{SAMPLE_TAGS, TempRoot, file, path, sample_files, valid};
+    use crate::adr::fixtures::{SAMPLE_TAGS, TempRoot, file, sample_files, valid};
+    use crate::adr::{ADR_DIR, adr_path};
 
     #[test]
     fn front_matter_reads_every_field() {
@@ -152,7 +152,7 @@ mod tests {
             [format!(
                 "{}: front matter can't be read, so it's left out; `cargo xtask check-docs` has \
                  the details",
-                path(Active, "0004-broken.md")
+                adr_path(Active, "0004-broken.md")
             )]
         );
         let strings =

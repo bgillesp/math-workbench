@@ -54,8 +54,13 @@ struct AdrFile {
 impl AdrFile {
     /// The repository-relative path of the file.
     fn path(&self) -> String {
-        format!("{ADR_DIR}/{}/{}", self.dir.name(), self.name)
+        adr_path(self.dir, &self.name)
     }
+}
+
+/// The repository-relative path of the ADR file named `name` in `dir`.
+fn adr_path(dir: Dir, name: &str) -> String {
+    format!("{ADR_DIR}/{}/{name}", dir.name())
 }
 
 /// An `adr` subcommand and its arguments.

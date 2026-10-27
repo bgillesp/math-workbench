@@ -98,12 +98,12 @@ pub(super) fn check(_files: &[AdrFile], _tags: Option<&str>) -> Vec<Problem> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adr::ADR_DIR;
     use crate::adr::Dir::{self, Active, Superseded};
-    use crate::adr::fixtures::{file, path, tags_for, valid, with_front_matter};
+    use crate::adr::fixtures::{file, tags_for, valid, with_front_matter};
+    use crate::adr::{ADR_DIR, adr_path};
 
     fn in_adr(dir: Dir, name: &str, kind: ProblemKind) -> Problem {
-        Problem { path: path(dir, name), kind }
+        Problem { path: adr_path(dir, name), kind }
     }
 
     fn in_tags(kind: ProblemKind) -> Problem {
@@ -310,7 +310,7 @@ mod tests {
                     "0003-another.md",
                     ProblemKind::DuplicateId {
                         number: 3,
-                        other: path(Active, "0003-decision-3.md"),
+                        other: adr_path(Active, "0003-decision-3.md"),
                     }
                 ),
                 in_adr(Superseded, "0003-another.md", ProblemKind::SupersededButNotListed),

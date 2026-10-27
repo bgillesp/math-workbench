@@ -92,11 +92,11 @@ fn local_today(_env: &[(&str, &str)]) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adr::ADR_DIR;
     use crate::adr::Dir::{Active, Superseded};
     use crate::adr::check::{Problem, ProblemKind, check};
-    use crate::adr::fixtures::{TEMPLATE_TEXT, TempRoot, file, new_args, path, repository, valid};
+    use crate::adr::fixtures::{TEMPLATE_TEXT, TempRoot, file, new_args, repository, valid};
     use crate::adr::records::read_adr_files;
+    use crate::adr::{ADR_DIR, adr_path};
 
     fn parse(args: &[&str]) -> Result<Args, String> {
         parse_args(lexopt::Parser::from_args(args)).map_err(|err| err.to_string())
@@ -178,7 +178,7 @@ mod tests {
             &new_args("Wire types: checked on connect", &["graph", "wires"], &[]),
             "2026-11-02",
         );
-        let new_path = path(Active, "0003-wire-types-checked-on-connect.md");
+        let new_path = adr_path(Active, "0003-wire-types-checked-on-connect.md");
         assert_eq!(
             created,
             Ok(Created {
@@ -202,13 +202,13 @@ mod tests {
     #[test]
     fn create_moves_the_adrs_it_supersedes() {
         let root = repository("supersede");
-        let old = root.read(&path(Active, "0001-decision-1.md"));
+        let old = root.read(&adr_path(Active, "0001-decision-1.md"));
         let created =
             create(&root.0, &new_args("Replacement", &["graph"], &[1, 2]), "2026-11-02").unwrap();
         assert_eq!(created.unused_tags, Vec::<String>::new());
-        assert_eq!(root.read(&path(Superseded, "0001-decision-1.md")), old);
-        assert!(!root.0.join(path(Active, "0001-decision-1.md")).exists());
-        assert!(root.0.join(path(Superseded, "0002-decision-2.md")).exists());
+        assert_eq!(root.read(&adr_path(Superseded, "0001-decision-1.md")), old);
+        assert!(!root.0.join(adr_path(Active, "0001-decision-1.md")).exists());
+        assert!(root.0.join(adr_path(Superseded, "0002-decision-2.md")).exists());
         assert!(
             root.read(&created.path)
                 .contains("\ndate: 2026-11-02\nsupersedes: ADR-0001, ADR-0002\n---\n")
@@ -238,7 +238,7 @@ mod tests {
         assert_eq!(
             created,
             Ok(Created {
-                path: path(Active, "0001-first.md"),
+                path: adr_path(Active, "0001-first.md"),
                 unused_tags: vec!["graph".into()],
                 existing_tags: vec![],
             })

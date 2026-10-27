@@ -31,7 +31,8 @@ pub(super) fn render(_adrs: &[Adr], _numbers: &[u32]) -> Result<String, NoSuchAd
 mod tests {
     use super::*;
     use crate::adr::Dir::{Active, Superseded};
-    use crate::adr::fixtures::{path, sample, sample_files};
+    use crate::adr::adr_path;
+    use crate::adr::fixtures::{sample, sample_files};
 
     fn parse(args: &[&str]) -> Result<Vec<u32>, String> {
         parse_args(lexopt::Parser::from_args(args)).map_err(|err| err.to_string())
@@ -50,8 +51,8 @@ mod tests {
     #[test]
     fn files_print_with_their_status() {
         let files = sample_files();
-        let header_3 = format!("{} (in force)", path(Active, &files[1].name));
-        let header_1 = format!("{} (superseded by ADR-0003)", path(Superseded, &files[2].name));
+        let header_3 = format!("{} (in force)", adr_path(Active, &files[1].name));
+        let header_1 = format!("{} (superseded by ADR-0003)", adr_path(Superseded, &files[2].name));
         assert_eq!(
             render(&sample(), &[3, 1]),
             Ok(format!("{header_3}\n\n{}\n{header_1}\n\n{}", files[1].text, files[2].text))

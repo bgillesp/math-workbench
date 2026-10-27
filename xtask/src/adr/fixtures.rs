@@ -35,11 +35,6 @@ pub(super) fn tags_for(numbers: &[u32]) -> String {
     numbers.iter().map(|n| format!("ADR-{n:04}: graph\n")).collect()
 }
 
-/// The repository-relative path of an ADR file.
-pub(super) fn path(dir: Dir, name: &str) -> String {
-    format!("{ADR_DIR}/{}/{name}", dir.name())
-}
-
 /// Three ADRs: 0001 superseded by 0003, and 0002 and 0003 in force.
 pub(super) fn sample_files() -> Vec<AdrFile> {
     vec![
@@ -126,7 +121,7 @@ impl TempRoot {
 
     /// Writes an ADR file at its place under `ADR_DIR`.
     pub(super) fn write_adr(&self, adr: &AdrFile) {
-        self.write(&path(adr.dir, &adr.name), &adr.text);
+        self.write(&adr.path(), &adr.text);
     }
 }
 
