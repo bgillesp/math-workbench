@@ -42,13 +42,15 @@ stay short calls into `cargo` or `xtask`, and anything with real logic is writte
 │   ├── pull_request_template.md
 │   └── ISSUE_TEMPLATE/       # bug and feature forms
 ├── crates/mw-<name>/         # the application's crates
-├── xtask/                    # repository checks
+├── xtask/                    # repository checks, and the `adr` command
 └── docs/                     # see docs/README.md
 ```
 
 ## Commands
 
-Every command is a recipe in the [justfile](../../justfile).
+Every command is a recipe in the [justfile](../../justfile), except `cargo xtask adr`, which runs
+directly. `just` joins variadic arguments with spaces, so a quoted ADR title would arrive in
+pieces, while `cargo xtask` passes arguments through the same way in every shell.
 
 | Recipe | Runs |
 |---|---|
@@ -130,34 +132,41 @@ whitespace and line endings consistent in every other file.
 `xtask` is a binary crate of repository checks, run as `cargo xtask <command>` through the alias
 in `.cargo/config.toml`, usually from a recipe. `cargo xtask --help` lists its commands.
 
-| Command | Checks | Run by |
+| Command | Does | Run by |
 |---|---|---|
-| `check-docs` | ADRs, design docs, and relative links | `just check-repo` |
-| `check-ready` | `docs/wip/` is empty or missing, and every design doc is `implemented` | `just ci` |
-| `doctor` | Missing tools, or a broken skills symlink | `just setup` |
+| `check-docs` | Checks ADRs, design docs, and relative links | `just check-repo` |
+| `check-ready` | Checks that `docs/wip/` is empty or missing, and every design doc is `implemented` | `just ci` |
+| `doctor` | Warns about missing tools, or a broken skills symlink | `just setup` |
+| `adr` | Lists, prints, and creates ADRs; `cargo xtask adr --help` lists its subcommands | Run directly |
 
 Each check prints an `error:` line for each problem, naming the file or crate to fix, and exits
 with a failure status if it found any. `doctor` only warns, so `just setup` always finishes.
 
 `check-docs` covers three things:
 
-- ADRs in `docs/architecture/decisions/`: file names like `0001-short-title.md`, unique numbers,
-  the `# ADR-NNNN: ` title line, statuses, and supersede links in both directions. The index in
-  that directory's `README.md` must list every ADR, with exactly the accepted ones under
-  "In force".
+- ADRs in `docs/architecture/decisions/active/` and `superseded/`, and their tags in
+  `decisions/tags.yaml`: file names like `0003-short-title.md`, the front matter schema, ids that
+  match the file names and are unique, `supersedes` entries that name existing ADRs with lower
+  numbers, at most one successor for each ADR, an ADR in `superseded/` exactly when a later ADR
+  supersedes it, and exactly one entry in `tags.yaml` for each ADR, with at least one well-formed
+  tag. The [architecture and design guide](architecture-and-design.md#architecture-decision-records)
+  describes the layout. Until a follow-up PR for
+  [#3](https://github.com/bgillesp/math-workbench/issues/3) removes them, `check-docs` also runs
+  the earlier checks of ADRs kept directly in `decisions/` and of the index in its `README.md`.
 - Design docs in `docs/design/`: file names, unique numbers, and statuses.
 - Every Markdown file that git tracks or would track: relative links and images must point to
   files in the repository. A path starting with `/` resolves from the repository root. Links with
   a scheme, such as `https:`, are skipped, and anchors aren't checked.
 
-The statuses are listed in [docs/README.md](../README.md#statuses).
+The design doc statuses are listed in [docs/README.md](../README.md#statuses).
 
 Each command is a module in `xtask/src/`, listed in `Command::ALL` in `main.rs`, which also
-generates the usage text. A check keeps its file and process I/O in a `run` function, and its
-logic in a pure `check` function that the unit tests call directly. Problems are recorded as enum
-values and formatted as messages only at the end, so tests compare exact results. A new check gets
-a recipe under `check-repo` if it should run while working, or joins `check-ready` if it checks
-the state of a branch that's ready to merge.
+generates the usage text. `adr` is a directory module with a file for each subcommand, listed in its
+own `SUBCOMMANDS` table, and its checks are in `adr/check.rs`. A check keeps its file and process
+I/O in a `run` function, and its logic in a pure `check` function that the unit tests call directly.
+Problems are recorded as enum values and formatted as messages only at the end, so tests compare
+exact results. A new check gets a recipe under `check-repo` if it should run while working, or joins
+`check-ready` if it checks the state of a branch that's ready to merge.
 
 `xtask` keeps its dependencies few, with `lexopt` rather than `clap` for arguments and
 `pulldown-cmark` without default features, so it builds quickly however large the application's

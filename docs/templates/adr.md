@@ -1,18 +1,14 @@
----
-status: proposed
-date: YYYY-MM-DD
----
+<!--
+Don't copy this template by hand. Create an ADR with
+
+    cargo xtask adr new "<title>" --tags=<tags> [--supersedes=<N>,...]
+
+which writes the front matter, fills in the heading, and copies the rest of this file after this
+comment. It also records the tags and moves any superseded ADRs. The architecture and design guide
+covers the workflow.
+-->
 
 # ADR-NNNN: Decision title
-
-<!--
-Copy to docs/architecture/decisions/NNNN-short-title.md with the next unused number, and add it to
-the index in that directory's README.md.
-
-To replace an earlier decision, add `supersedes: ADR-NNNN` to the front matter. When this ADR is
-accepted, change the old ADR's status to `superseded by ADR-NNNN` and move it to History in the
-index.
--->
 
 ## Context
 
