@@ -1,15 +1,34 @@
 //! `adr tags`: each tag, with the number of ADRs in force that use it.
 
+use std::collections::BTreeMap;
+use std::fmt::Write;
+
 use super::records::Adr;
 
 /// Parses the arguments after `adr tags`, which takes none.
-pub(super) fn parse_args(_parser: lexopt::Parser) -> Result<(), lexopt::Error> {
-    todo!()
+pub(super) fn parse_args(mut parser: lexopt::Parser) -> Result<(), lexopt::Error> {
+    match parser.next()? {
+        Some(arg) => Err(arg.unexpected()),
+        None => Ok(()),
+    }
 }
 
 /// The `adr tags` output for `adrs`.
-pub(super) fn render(_adrs: &[Adr]) -> String {
-    todo!()
+pub(super) fn render(adrs: &[Adr]) -> String {
+    let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+    for adr in adrs {
+        for tag in &adr.tags {
+            *counts.entry(tag).or_default() += usize::from(adr.is_active());
+        }
+    }
+    if counts.is_empty() {
+        return "None yet.\n".to_string();
+    }
+    let mut output = String::new();
+    for (tag, count) in counts {
+        let _ = writeln!(output, "- {tag} ({count})");
+    }
+    output
 }
 
 #[cfg(test)]

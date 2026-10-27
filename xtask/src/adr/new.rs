@@ -4,9 +4,18 @@
 //! The ADR is dated with today's local date. The standard library has no time zones, so the date
 //! comes from git, which reports the current time and the local UTC offset.
 
+use std::fmt::{self, Write};
+use std::fs;
+use std::io;
 use std::path::Path;
+use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::AdrFile;
+use super::records::{at, read_adr_files, read_optional, tag_entries};
+use super::{
+    AdrFile, Dir, TAGS_PATH, adr_path, detached_value, file_number, is_tag, list_arg, number_arg,
+    parse_id,
+};
 
 /// The template `adr new` copies the body of an ADR from.
 pub(super) const TEMPLATE: &str = "docs/templates/adr.md";
@@ -52,41 +61,309 @@ pub(super) enum Error {
     Io(String),
 }
 
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EmptyTitle => write!(f, "the title is empty"),
+            Self::TitleQuoteOrBackslash => write!(f, "the title can't contain `\"` or `\\`"),
+            Self::NoTags => write!(f, "`adr new` needs at least one tag"),
+            Self::BadTag { tag } => {
+                write!(f, "`{tag}` isn't a tag; tags are lowercase letters, digits, and hyphens")
+            },
+            Self::SupersedesMissing { number } => {
+                write!(f, "there's no ADR-{number:04} to supersede")
+            },
+            Self::AlreadySuperseded { number } => {
+                write!(f, "ADR-{number:04} is already superseded")
+            },
+            Self::Io(message) => write!(f, "{message}"),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
+impl From<io::Error> for Error {
+    fn from(err: io::Error) -> Self {
+        Self::Io(err.to_string())
+    }
+}
+
 /// Parses the arguments after `adr new`.
-pub(super) fn parse_args(_parser: lexopt::Parser) -> Result<Args, lexopt::Error> {
-    todo!()
+pub(super) fn parse_args(mut parser: lexopt::Parser) -> Result<Args, lexopt::Error> {
+    use lexopt::prelude::*;
+
+    let mut title = None;
+    let mut tags = None;
+    let mut supersedes = Vec::new();
+    // An option given without a value, which it needs.
+    let mut bare: Option<&str> = None;
+    while let Some(arg) = parser.next()? {
+        if let Some(option) = bare.take() {
+            return Err(match arg {
+                Value(value) => detached_value(option, &value),
+                _ => needs_value(option),
+            });
+        }
+        match arg {
+            Long("tags") => match parser.optional_value() {
+                Some(value) => tags = Some(list_arg("tags", value, "tag")?),
+                None => bare = Some("tags"),
+            },
+            Long("supersedes") => match parser.optional_value() {
+                Some(value) => {
+                    for number in list_arg("supersedes", value, "ADR number")? {
+                        supersedes.push(number_arg(&number)?);
+                    }
+                },
+                None => bare = Some("supersedes"),
+            },
+            Value(value) if title.is_none() => title = Some(value.string()?),
+            arg => return Err(arg.unexpected()),
+        }
+    }
+    if let Some(option) = bare {
+        return Err(needs_value(option));
+    }
+    let title = title.ok_or("`adr new` needs a title")?;
+    let tags = tags.ok_or("`adr new` needs `--tags=<tags>` with at least one tag")?;
+    Ok(Args { title, tags, supersedes })
+}
+
+/// The error for `--option` given without its value.
+fn needs_value(option: &str) -> lexopt::Error {
+    format!("`--{option}` needs a value, attached as `--{option}=<value>`").into()
+}
+
+/// Runs `adr new`, dated today, and returns what it prints.
+pub(super) fn run(root: &Path, args: &Args) -> Result<String, Error> {
+    let date = local_today(&[]).unwrap_or_else(|| {
+        eprintln!(
+            "warning: git couldn't be run to find the local date, so the ADR is dated in UTC"
+        );
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |time| time.as_secs());
+        local_date(i64::try_from(now).unwrap_or_default(), 0)
+    });
+    let created = create(root, args, &date)?;
+    let mut output = format!("Created {}\n", created.path);
+    for number in &args.supersedes {
+        let _ = writeln!(output, "Moved ADR-{number:04} to `superseded/`");
+    }
+    output.push_str("\nNext:\n\n1. Write the summary in the front matter, and the body.");
+    if !args.supersedes.is_empty() {
+        output.push_str(
+            " Restate whatever still holds from the ADRs this one supersedes, so the current \
+             decision can be read from one document.",
+        );
+    }
+    output.push_str(
+        "\n2. Run `cargo xtask check-docs`.\n3. Open a PR. Merging it accepts the ADR.\n",
+    );
+    if !created.unused_tags.is_empty() && !created.existing_tags.is_empty() {
+        let unused: Vec<String> =
+            created.unused_tags.iter().map(|tag| format!("`{tag}`")).collect();
+        let _ = writeln!(
+            output,
+            "\nNo other ADR has {} {}. The existing tags are {}. If one of these was meant, \
+             change the entry in `tags.yaml`.",
+            if unused.len() == 1 { "the tag" } else { "the tags" },
+            unused.join(", "),
+            created.existing_tags.join(", "),
+        );
+    }
+    Ok(output)
 }
 
 /// Creates the ADR described by `args` under `root`, dated `date`.
-pub(super) fn create(_root: &Path, _args: &Args, _date: &str) -> Result<Created, Error> {
-    todo!()
+pub(super) fn create(root: &Path, args: &Args, date: &str) -> Result<Created, Error> {
+    let title = args.title.trim();
+    if title.is_empty() {
+        return Err(Error::EmptyTitle);
+    }
+    if title.contains(['"', '\\']) {
+        return Err(Error::TitleQuoteOrBackslash);
+    }
+    if args.tags.is_empty() {
+        return Err(Error::NoTags);
+    }
+    if let Some(tag) = args.tags.iter().find(|tag| !is_tag(tag)) {
+        return Err(Error::BadTag { tag: tag.clone() });
+    }
+    let (files, tags_text) = read_adr_files(root)?;
+    let mut supersedes = args.supersedes.clone();
+    supersedes.sort_unstable();
+    supersedes.dedup();
+    let mut moves = Vec::new();
+    for &number in &supersedes {
+        let file = files
+            .iter()
+            .find(|file| file_number(&file.name) == Some(number))
+            .ok_or(Error::SupersedesMissing { number })?;
+        if file.dir == Dir::Superseded {
+            return Err(Error::AlreadySuperseded { number });
+        }
+        moves.push(file);
+    }
+    let template = read_optional(root, TEMPLATE)?
+        .ok_or_else(|| Error::Io(format!("{TEMPLATE}: the ADR template is missing")))?;
+
+    let number = next_number(&files);
+    let path = adr_path(Dir::Active, &format!("{number:04}-{}.md", slug(title)));
+    let mut tags: Vec<String> = Vec::new();
+    for tag in &args.tags {
+        if !tags.contains(tag) {
+            tags.push(tag.clone());
+        }
+    }
+    let mut existing_tags: Vec<String> =
+        tag_entries(tags_text.as_deref()).into_iter().flat_map(|(_, tags)| tags).collect();
+    existing_tags.sort();
+    existing_tags.dedup();
+    let unused_tags = tags.iter().filter(|tag| !existing_tags.contains(tag)).cloned().collect();
+
+    write(root, &path, &adr_text(number, title, date, &supersedes, &template))?;
+    write(root, TAGS_PATH, &add_entry(tags_text.as_deref().unwrap_or_default(), number, &tags))?;
+    for file in moves {
+        let to = adr_path(Dir::Superseded, &file.name);
+        fs::create_dir_all(root.join(&to).parent().unwrap_or(root)).map_err(|err| at(&to, &err))?;
+        fs::rename(root.join(file.path()), root.join(&to)).map_err(|err| at(&to, &err))?;
+    }
+    Ok(Created { path, unused_tags, existing_tags })
 }
 
-/// The file name slug for a title.
-fn slug(_title: &str) -> String {
-    todo!()
+/// Writes `text` to the file at `path` under `root`, creating its directory.
+fn write(root: &Path, path: &str, text: &str) -> io::Result<()> {
+    let target = root.join(path);
+    fs::create_dir_all(target.parent().unwrap_or(root)).map_err(|err| at(path, &err))?;
+    fs::write(target, text).map_err(|err| at(path, &err))
+}
+
+/// A new ADR's text: its front matter, then the template's body after its instructions comment,
+/// with the number and title in the heading.
+fn adr_text(number: u32, title: &str, date: &str, supersedes: &[u32], template: &str) -> String {
+    let mut text =
+        format!("---\nid: ADR-{number:04}\ntitle: \"{title}\"\nsummary: \"\"\ndate: {date}\n");
+    if !supersedes.is_empty() {
+        let ids: Vec<String> = supersedes.iter().map(|number| format!("ADR-{number:04}")).collect();
+        let _ = writeln!(text, "supersedes: {}", ids.join(", "));
+    }
+    text.push_str("---\n\n");
+    let body = match template.trim_start().strip_prefix("<!--") {
+        Some(comment) => comment.split_once("-->").map_or("", |(_, body)| body),
+        None => template,
+    };
+    let mut heading_done = false;
+    for line in body.trim_start().split_inclusive('\n') {
+        if !heading_done && line.starts_with("# ") {
+            let _ = writeln!(text, "# ADR-{number:04}: {title}");
+            heading_done = true;
+        } else {
+            text.push_str(line);
+        }
+    }
+    text
+}
+
+/// `tags`, the text of `tags.yaml`, with an entry for ADR `number` added before the first entry
+/// with a higher number, which keeps the entries sorted.
+fn add_entry(tags: &str, number: u32, new_tags: &[String]) -> String {
+    let entry = format!("ADR-{number:04}: {}\n", new_tags.join(", "));
+    let mut text = String::new();
+    let mut added = false;
+    for line in tags.split_inclusive('\n') {
+        let later =
+            line.split_once(':').and_then(|(key, _)| parse_id(key)).is_some_and(|n| n > number);
+        if later && !added {
+            text.push_str(&entry);
+            added = true;
+        }
+        text.push_str(line);
+    }
+    if !added {
+        if !text.is_empty() && !text.ends_with('\n') {
+            text.push('\n');
+        }
+        text.push_str(&entry);
+    }
+    text
+}
+
+/// The file name slug for a title: its ASCII letters, lowercased, and digits, with every other
+/// run of characters turned into a single hyphen. A title with none of them gives `adr`.
+fn slug(title: &str) -> String {
+    let mut slug = String::new();
+    for c in title.chars() {
+        if c.is_ascii_alphanumeric() {
+            slug.push(c.to_ascii_lowercase());
+        } else if !slug.is_empty() && !slug.ends_with('-') {
+            slug.push('-');
+        }
+    }
+    let slug = slug.trim_end_matches('-');
+    if slug.is_empty() { "adr".to_string() } else { slug.to_string() }
 }
 
 /// One more than the highest ADR number, or 1 if there are no ADRs.
-fn next_number(_files: &[AdrFile]) -> u32 {
-    todo!()
+fn next_number(files: &[AdrFile]) -> u32 {
+    files.iter().filter_map(|file| file_number(&file.name)).max().map_or(1, |number| number + 1)
 }
 
 /// The Unix time and the UTC offset in seconds, from the end of `git var GIT_COMMITTER_IDENT`'s
 /// output.
-fn parse_git_ident(_line: &str) -> Option<(i64, i32)> {
-    todo!()
+fn parse_git_ident(line: &str) -> Option<(i64, i32)> {
+    let mut fields = line.split_whitespace().rev();
+    let offset = fields.next()?;
+    let time = fields.next()?.parse().ok()?;
+    let (sign, digits) = match offset.split_at_checked(1)? {
+        ("+", digits) => (1, digits),
+        ("-", digits) => (-1, digits),
+        _ => return None,
+    };
+    if digits.len() != 4 || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    let hours: i32 = digits[..2].parse().ok()?;
+    let minutes: i32 = digits[2..].parse().ok()?;
+    Some((time, sign * (hours * 3600 + minutes * 60)))
 }
 
 /// The `YYYY-MM-DD` date at `unix_time`, in the zone `offset` seconds from UTC.
-fn local_date(_unix_time: i64, _offset: i32) -> String {
-    todo!()
+fn local_date(unix_time: i64, offset: i32) -> String {
+    // Howard Hinnant's `civil_from_days`, over 400-year eras that start on March 1.
+    let days = (unix_time + i64::from(offset)).div_euclid(86_400) + 719_468;
+    let era = days.div_euclid(146_097);
+    let day_of_era = days.rem_euclid(146_097);
+    let year_of_era =
+        (day_of_era - day_of_era / 1460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_from_march = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_from_march + 2) / 5 + 1;
+    let month = if month_from_march < 10 { month_from_march + 3 } else { month_from_march - 9 };
+    let year = era * 400 + year_of_era + i64::from(month <= 2);
+    format!("{year:04}-{month:02}-{day:02}")
 }
 
 /// Today's local date from git, with `env` added to git's environment, or `None` if git can't
 /// run.
-fn local_today(_env: &[(&str, &str)]) -> Option<String> {
-    todo!()
+fn local_today(env: &[(&str, &str)]) -> Option<String> {
+    // `git var` fails without an identity, and only the time and offset at the end are read.
+    let output = Command::new("git")
+        .args([
+            "-c",
+            "user.name=xtask",
+            "-c",
+            "user.email=xtask",
+            "var",
+            "GIT_COMMITTER_IDENT",
+        ])
+        .envs(env.iter().copied())
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let (time, offset) = parse_git_ident(String::from_utf8(output.stdout).ok()?.trim())?;
+    Some(local_date(time, offset))
 }
 
 #[cfg(test)]

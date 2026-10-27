@@ -1,13 +1,15 @@
 //! The ADR checks that `check-docs` runs: the front matter schema, the supersede links between
 //! ADRs, and `tags.yaml`.
 
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt;
 
-use super::AdrFile;
+use super::records::{Fields, read_front_matter};
+use super::{AdrFile, Dir, TAGS_PATH, file_number, is_tag, parse_id, split_tags, yaml};
 
 /// A problem in one file.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct Problem {
+pub(super) struct Problem {
     /// The repository-relative path of the file to fix.
     pub(super) path: String,
     /// What's wrong with it.
@@ -85,14 +87,214 @@ pub(super) enum ProblemKind {
 }
 
 impl fmt::Display for ProblemKind {
-    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::BadName => write!(f, "ADR file names look like `0003-short-title.md`"),
+            Self::NoFrontMatter => {
+                write!(f, "the file doesn't start with front matter between `---` lines")
+            },
+            Self::MalformedLine { line } => write!(
+                f,
+                "front matter line `{line}` isn't `key: value` or an indented continuation of a \
+                 quoted value"
+            ),
+            Self::UnknownKey { key } => write!(f, "`{key}` isn't an ADR front matter field"),
+            Self::DuplicateKey { key } => write!(f, "`{key}` appears more than once"),
+            Self::MissingField { key } => write!(f, "`{key}` is missing"),
+            Self::EmptyField { key } => write!(f, "`{key}` is empty"),
+            Self::NotQuoted { key } => write!(f, "`{key}` needs its value in double quotes"),
+            Self::QuoteOrBackslash { key } => {
+                write!(f, "the quoted value of `{key}` contains `\"` or `\\`, which can't be used")
+            },
+            Self::UnterminatedQuote { key } => write!(
+                f,
+                "the quoted value of `{key}` has no closing quote; continuation lines are indented"
+            ),
+            Self::SummaryTooLong { chars } => {
+                write!(f, "`summary` is {chars} characters, over the limit of 300")
+            },
+            Self::BadId { value } => write!(f, "`id` is `{value}`, not an id like `ADR-0003`"),
+            Self::IdMismatch { id } => {
+                write!(f, "`id` is ADR-{id:04}, which doesn't match the number in the file name")
+            },
+            Self::DuplicateId { number, other } => write!(f, "{other} is also ADR-{number:04}"),
+            Self::BadDate { value } => {
+                write!(f, "`date` is `{value}`, not a date like `2026-11-02`")
+            },
+            Self::BadSupersedesEntry { entry } => {
+                write!(f, "`supersedes` lists `{entry}`, which isn't an id like `ADR-0003`")
+            },
+            Self::SupersedesMissing { number } => {
+                write!(f, "supersedes ADR-{number:04}, which doesn't exist")
+            },
+            Self::SupersedesNotLower { number } => write!(
+                f,
+                "supersedes ADR-{number:04}, but an ADR can only supersede ones with lower numbers"
+            ),
+            Self::SupersededByMany { by } => {
+                write!(f, "{} all supersede this one; an ADR has one successor", ids(by))
+            },
+            Self::SupersededButNotListed => {
+                write!(f, "no ADR supersedes this one, so it belongs in `active/`")
+            },
+            Self::ActiveButSuperseded { by } => {
+                write!(f, "ADR-{by:04} supersedes this one, so it belongs in `superseded/`")
+            },
+            Self::TagsMalformedLine { line } => {
+                write!(f, "`{line}` isn't an entry like `ADR-0003: graph, wires`")
+            },
+            Self::TagsMissing { number } => {
+                write!(f, "ADR-{number:04} has no entry; give it at least one tag")
+            },
+            Self::TagsForMissingAdr { number } => {
+                write!(f, "there's an entry for ADR-{number:04}, which doesn't exist")
+            },
+            Self::DuplicateTagsEntry { number } => {
+                write!(f, "ADR-{number:04} has more than one entry")
+            },
+            Self::NoTags { number } => {
+                write!(f, "ADR-{number:04} has no tags; give it at least one")
+            },
+            Self::BadTag { number, tag } => write!(
+                f,
+                "ADR-{number:04} has the tag `{tag}`; tags are lowercase letters, digits, and \
+                 hyphens"
+            ),
+        }
     }
 }
 
+/// ADR ids for `numbers`, separated by commas.
+fn ids(numbers: &[u32]) -> String {
+    let ids: Vec<String> = numbers.iter().map(|number| format!("ADR-{number:04}")).collect();
+    ids.join(", ")
+}
+
+/// An ADR file with a well-formed name, and its front matter as far as it could be read.
+struct Checked<'a> {
+    /// The file.
+    file: &'a AdrFile,
+    /// The file's repository-relative path.
+    path: String,
+    /// The number in the file name, which identifies the ADR in the other checks.
+    number: u32,
+    /// The front matter fields that could be read.
+    fields: Fields,
+}
+
 /// Checks the ADRs and `tags.yaml` (`None` if it's missing).
-pub(super) fn check(_files: &[AdrFile], _tags: Option<&str>) -> Vec<Problem> {
-    todo!()
+pub(super) fn check(files: &[AdrFile], tags: Option<&str>) -> Vec<Problem> {
+    let mut problems = Vec::new();
+    let mut adrs = Vec::new();
+    let mut paths: HashMap<u32, String> = HashMap::new();
+    for file in files {
+        let path = file.path();
+        let Some(number) = file_number(&file.name) else {
+            problems.push(Problem { path, kind: ProblemKind::BadName });
+            continue;
+        };
+        let (fields, kinds) = read_front_matter(&file.text);
+        let mut problem = |kind| problems.push(Problem { path: path.clone(), kind });
+        kinds.into_iter().for_each(&mut problem);
+        if let Some(id) = fields.number
+            && id != number
+        {
+            problem(ProblemKind::IdMismatch { id });
+        }
+        match paths.get(&number) {
+            Some(other) => problem(ProblemKind::DuplicateId { number, other: other.clone() }),
+            None => {
+                paths.insert(number, path.clone());
+            },
+        }
+        adrs.push(Checked { file, path, number, fields });
+    }
+    problems.extend(check_supersedes(&adrs));
+    problems.extend(check_tags(&adrs, tags.unwrap_or_default()));
+    problems
+}
+
+/// Checks that each `supersedes` entry names an existing ADR with a lower number, that each ADR
+/// has at most one successor, and that an ADR is in `superseded/` exactly when it has one.
+fn check_supersedes(adrs: &[Checked<'_>]) -> Vec<Problem> {
+    let mut problems = Vec::new();
+    let numbers: HashSet<u32> = adrs.iter().map(|adr| adr.number).collect();
+    let mut successors: BTreeMap<u32, BTreeSet<u32>> = BTreeMap::new();
+    for adr in adrs {
+        for &old in &adr.fields.supersedes {
+            let kind = if numbers.contains(&old) {
+                successors.entry(old).or_default().insert(adr.number);
+                if old < adr.number {
+                    continue;
+                }
+                ProblemKind::SupersedesNotLower { number: old }
+            } else {
+                ProblemKind::SupersedesMissing { number: old }
+            };
+            problems.push(Problem { path: adr.path.clone(), kind });
+        }
+    }
+    for adr in adrs {
+        let by: Vec<u32> = successors.get(&adr.number).into_iter().flatten().copied().collect();
+        let mut problem = |kind| problems.push(Problem { path: adr.path.clone(), kind });
+        if by.len() > 1 {
+            problem(ProblemKind::SupersededByMany { by: by.clone() });
+        }
+        match (adr.file.dir, by.first()) {
+            (Dir::Superseded, None) => problem(ProblemKind::SupersededButNotListed),
+            (Dir::Active, Some(&by)) => problem(ProblemKind::ActiveButSuperseded { by }),
+            _ => {},
+        }
+    }
+    problems
+}
+
+/// Checks that `tags.yaml` has exactly one entry for each ADR, and none for an ADR that doesn't
+/// exist, and that each entry has at least one well-formed tag.
+fn check_tags(adrs: &[Checked<'_>], tags: &str) -> Vec<Problem> {
+    let mut kinds = Vec::new();
+    // The ADRs with an entry, including entries whose quoted value couldn't be read.
+    let mut entered = BTreeSet::new();
+    let (entries, errors) = yaml::read(tags);
+    for error in errors {
+        kinds.push(match error {
+            yaml::Error::MalformedLine { line } => ProblemKind::TagsMalformedLine { line },
+            yaml::Error::UnterminatedQuote { key } => {
+                entered.extend(parse_id(&key));
+                ProblemKind::UnterminatedQuote { key }
+            },
+            yaml::Error::QuoteOrBackslash { key } => {
+                entered.extend(parse_id(&key));
+                ProblemKind::QuoteOrBackslash { key }
+            },
+        });
+    }
+    let numbers: BTreeSet<u32> = adrs.iter().map(|adr| adr.number).collect();
+    for entry in &entries {
+        let Some(number) = parse_id(&entry.key) else {
+            let line = match &entry.value {
+                yaml::Value::Plain(value) => format!("{}: {value}", entry.key),
+                yaml::Value::Quoted(value) => format!("{}: \"{value}\"", entry.key),
+            };
+            kinds.push(ProblemKind::TagsMalformedLine { line });
+            continue;
+        };
+        if !entered.insert(number) {
+            kinds.push(ProblemKind::DuplicateTagsEntry { number });
+        } else if !numbers.contains(&number) {
+            kinds.push(ProblemKind::TagsForMissingAdr { number });
+        } else if entry.value.text().is_empty() {
+            kinds.push(ProblemKind::NoTags { number });
+        } else {
+            for tag in split_tags(entry.value.text()).filter(|tag| !is_tag(tag)) {
+                kinds.push(ProblemKind::BadTag { number, tag: tag.to_string() });
+            }
+        }
+    }
+    for &number in numbers.difference(&entered) {
+        kinds.push(ProblemKind::TagsMissing { number });
+    }
+    kinds.into_iter().map(|kind| Problem { path: TAGS_PATH.to_string(), kind }).collect()
 }
 
 #[cfg(test)]

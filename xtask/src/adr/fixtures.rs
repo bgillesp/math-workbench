@@ -1,6 +1,7 @@
 //! Fixtures shared by the tests of the `adr` modules.
 
 use std::collections::BTreeMap;
+use std::fmt::Write;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -25,14 +26,17 @@ pub(super) fn valid(dir: Dir, n: u32, supersedes: &[u32]) -> AdrFile {
     );
     if !supersedes.is_empty() {
         let ids: Vec<String> = supersedes.iter().map(|s| format!("ADR-{s:04}")).collect();
-        front_matter.push_str(&format!("supersedes: {}\n", ids.join(", ")));
+        let _ = writeln!(front_matter, "supersedes: {}", ids.join(", "));
     }
     with_front_matter(dir, &format!("{n:04}-decision-{n}.md"), &front_matter)
 }
 
 /// `tags.yaml` giving each numbered ADR the tag `graph`.
 pub(super) fn tags_for(numbers: &[u32]) -> String {
-    numbers.iter().map(|n| format!("ADR-{n:04}: graph\n")).collect()
+    numbers.iter().fold(String::new(), |mut tags, n| {
+        let _ = writeln!(tags, "ADR-{n:04}: graph");
+        tags
+    })
 }
 
 /// Three ADRs: 0001 superseded by 0003, and 0002 and 0003 in force.

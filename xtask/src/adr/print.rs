@@ -2,6 +2,7 @@
 
 use std::fmt;
 
+use super::number_arg;
 use super::records::Adr;
 
 /// A number given to `adr print` has no ADR.
@@ -12,19 +13,42 @@ pub(super) struct NoSuchAdr {
 }
 
 impl fmt::Display for NoSuchAdr {
-    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "there's no ADR-{:04}", self.number)
     }
 }
 
+impl std::error::Error for NoSuchAdr {}
+
 /// Parses the arguments after `adr print`: one or more ADR numbers.
-pub(super) fn parse_args(_parser: lexopt::Parser) -> Result<Vec<u32>, lexopt::Error> {
-    todo!()
+pub(super) fn parse_args(mut parser: lexopt::Parser) -> Result<Vec<u32>, lexopt::Error> {
+    use lexopt::prelude::*;
+
+    let mut numbers = Vec::new();
+    while let Some(arg) = parser.next()? {
+        match arg {
+            Value(value) => numbers.push(number_arg(&value.string()?)?),
+            arg => return Err(arg.unexpected()),
+        }
+    }
+    if numbers.is_empty() {
+        return Err("`adr print` needs at least one ADR number".into());
+    }
+    Ok(numbers)
 }
 
-/// The `adr print` output for the ADRs numbered `numbers`, in the order given.
-pub(super) fn render(_adrs: &[Adr], _numbers: &[u32]) -> Result<String, NoSuchAdr> {
-    todo!()
+/// The `adr print` output for the ADRs numbered `numbers`, in the order given, looked up among
+/// `adrs`.
+pub(super) fn render(adrs: &[Adr], numbers: &[u32]) -> Result<String, NoSuchAdr> {
+    let mut blocks = Vec::new();
+    for &number in numbers {
+        let adr = adrs
+            .iter()
+            .find(|adr| adr.front_matter.number == number)
+            .ok_or(NoSuchAdr { number })?;
+        blocks.push(format!("{} ({})\n\n{}", adr.file.path(), adr.status(), adr.file.text));
+    }
+    Ok(blocks.join("\n"))
 }
 
 #[cfg(test)]

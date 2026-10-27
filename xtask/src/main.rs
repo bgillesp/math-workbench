@@ -1,7 +1,8 @@
 //! Repository checks for Math Workbench.
 //!
 //! Run through the `cargo xtask` alias, usually from a `just` recipe. Each check prints the
-//! problems it finds and exits with a failure status if there are any.
+//! problems it finds and exits with a failure status if there are any. `adr` instead prints views
+//! of the ADRs, or creates one, and takes a subcommand of its own.
 
 mod adr;
 mod docs;
@@ -16,18 +17,25 @@ use std::process::ExitCode;
 /// The problems a check found, or an error that kept it from running.
 type CheckResult = Result<Vec<String>, Box<dyn Error>>;
 
+/// A top-level command.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Command {
+    /// `adr`, which parses its own subcommand and arguments.
+    Adr,
+    /// `check-docs`.
     CheckDocs,
+    /// `check-ready`.
     CheckReady,
+    /// `doctor`.
     Doctor,
 }
 
 impl Command {
-    const ALL: [Self; 3] = [Self::CheckDocs, Self::CheckReady, Self::Doctor];
+    const ALL: [Self; 4] = [Self::Adr, Self::CheckDocs, Self::CheckReady, Self::Doctor];
 
     fn name(self) -> &'static str {
         match self {
+            Self::Adr => "adr",
             Self::CheckDocs => "check-docs",
             Self::CheckReady => "check-ready",
             Self::Doctor => "doctor",
@@ -36,6 +44,7 @@ impl Command {
 
     fn summary(self) -> &'static str {
         match self {
+            Self::Adr => "list, print, and create ADRs (`cargo xtask adr --help` for more)",
             Self::CheckDocs => "ADRs, design docs, and relative links are consistent",
             Self::CheckReady => "no branch notes, and every design doc is implemented",
             Self::Doctor => "warn about missing tools or a broken skills symlink",
@@ -44,7 +53,8 @@ impl Command {
 }
 
 fn main() -> ExitCode {
-    let command = match parse_args(lexopt::Parser::from_env()) {
+    let mut parser = lexopt::Parser::from_env();
+    let command = match parse_args(&mut parser) {
         Ok(Some(command)) => command,
         Ok(None) => {
             println!("{}", usage());
@@ -57,6 +67,7 @@ fn main() -> ExitCode {
     };
     let root = workspace_root();
     let result = match command {
+        Command::Adr => return adr::run(&root, parser),
         Command::CheckDocs => docs::run(&root),
         Command::CheckReady => ready::run(&root),
         Command::Doctor => {
@@ -84,8 +95,9 @@ fn main() -> ExitCode {
     }
 }
 
-/// The requested command, or `None` if help was requested.
-fn parse_args(mut parser: lexopt::Parser) -> Result<Option<Command>, lexopt::Error> {
+/// The requested command, or `None` if help was requested. The arguments after `adr` are left in
+/// `parser` for it to parse.
+fn parse_args(parser: &mut lexopt::Parser) -> Result<Option<Command>, lexopt::Error> {
     use lexopt::prelude::*;
 
     let command = match parser.next()? {
@@ -100,6 +112,9 @@ fn parse_args(mut parser: lexopt::Parser) -> Result<Option<Command>, lexopt::Err
         Some(arg) => return Err(arg.unexpected()),
         None => return Err("missing command".into()),
     };
+    if command == Command::Adr {
+        return Ok(Some(command));
+    }
     match parser.next()? {
         Some(Short('h') | Long("help")) => Ok(None),
         Some(arg) => Err(arg.unexpected()),
@@ -134,7 +149,7 @@ mod tests {
     use super::*;
 
     fn parse(args: &[&str]) -> Result<Option<Command>, String> {
-        parse_args(lexopt::Parser::from_args(args)).map_err(|err| err.to_string())
+        parse_args(&mut lexopt::Parser::from_args(args)).map_err(|err| err.to_string())
     }
 
     #[test]

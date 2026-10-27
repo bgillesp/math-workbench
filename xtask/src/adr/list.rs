@@ -1,8 +1,10 @@
 //! `adr list`: the ADRs by number, or grouped by tag.
 
+use std::collections::BTreeSet;
 use std::fmt;
 
 use super::records::Adr;
+use super::{detached_value, list_arg};
 
 /// The column summaries are wrapped at with `--verbose`.
 const SUMMARY_WIDTH: usize = 80;
@@ -40,25 +42,118 @@ pub(super) struct UnknownTag {
 }
 
 impl fmt::Display for UnknownTag {
-    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.existing.is_empty() {
+            return write!(f, "no ADR has the tag `{}`, or any tags yet", self.tag);
+        }
+        write!(f, "no ADR has the tag `{}`; the tags are {}", self.tag, self.existing.join(", "))
     }
 }
 
+impl std::error::Error for UnknownTag {}
+
 /// Parses the arguments after `adr list`.
-pub(super) fn parse_args(_parser: lexopt::Parser) -> Result<Options, lexopt::Error> {
-    todo!()
+pub(super) fn parse_args(mut parser: lexopt::Parser) -> Result<Options, lexopt::Error> {
+    use lexopt::prelude::*;
+
+    let mut options = Options::default();
+    // Whether the previous argument was `--tags` without a value.
+    let mut bare_tags = false;
+    while let Some(arg) = parser.next()? {
+        let after_bare_tags = std::mem::take(&mut bare_tags);
+        match arg {
+            Long("all") => options.all = true,
+            Long("verbose") => options.verbose = true,
+            Long("tags") => {
+                if let Some(value) = parser.optional_value() {
+                    options.grouping = Grouping::Tags(list_arg("tags", value, "tag")?);
+                } else {
+                    options.grouping = Grouping::AllTags;
+                    bare_tags = true;
+                }
+            },
+            Value(value) if after_bare_tags => return Err(detached_value("tags", &value)),
+            arg => return Err(arg.unexpected()),
+        }
+    }
+    Ok(options)
 }
 
 /// The `adr list` output for `adrs`.
-pub(super) fn render(_adrs: &[Adr], _options: &Options) -> Result<String, UnknownTag> {
-    todo!()
+pub(super) fn render(adrs: &[Adr], options: &Options) -> Result<String, UnknownTag> {
+    if adrs.is_empty() {
+        return Ok("None yet.\n".to_string());
+    }
+    let shown: Vec<&Adr> = adrs.iter().filter(|adr| options.all || adr.is_active()).collect();
+    let entries = |adrs: &[&Adr]| -> String {
+        if adrs.is_empty() {
+            return "None in force.\n".to_string();
+        }
+        adrs.iter().map(|adr| entry(adr, options.verbose)).collect()
+    };
+    let tags: Vec<String> = match &options.grouping {
+        Grouping::Flat => return Ok(entries(&shown)),
+        Grouping::AllTags => tags_of(&shown),
+        Grouping::Tags(tags) => {
+            let existing = tags_of(&adrs.iter().collect::<Vec<_>>());
+            if let Some(tag) = tags.iter().find(|tag| !existing.contains(tag)) {
+                return Err(UnknownTag { tag: tag.clone(), existing });
+            }
+            tags.clone()
+        },
+    };
+    let groups: Vec<String> = tags
+        .iter()
+        .map(|tag| {
+            let tagged: Vec<&Adr> =
+                shown.iter().copied().filter(|adr| adr.tags.contains(tag)).collect();
+            format!("## {tag}\n\n{}", entries(&tagged))
+        })
+        .collect();
+    Ok(groups.join("\n"))
+}
+
+/// Every tag that `adrs` use, sorted.
+fn tags_of(adrs: &[&Adr]) -> Vec<String> {
+    let tags: BTreeSet<&String> = adrs.iter().flat_map(|adr| &adr.tags).collect();
+    tags.into_iter().cloned().collect()
+}
+
+/// An ADR's entry in the list, with its summary below it if `verbose`.
+fn entry(adr: &Adr, verbose: bool) -> String {
+    let mut entry = format!("- ADR-{:04}: {}", adr.front_matter.number, adr.front_matter.title);
+    if !adr.tags.is_empty() {
+        entry = format!("{entry} ({})", adr.tags.join("/"));
+    }
+    if !adr.is_active() {
+        entry = format!("{entry}, {}", adr.status());
+    }
+    entry.push('\n');
+    if verbose {
+        entry.push_str(&wrap(&adr.front_matter.summary, SUMMARY_WIDTH, "  "));
+        entry.push('\n');
+    }
+    entry
 }
 
 /// `text` wrapped greedily into lines of at most `width` columns, each starting with `indent`,
 /// which counts toward the width. A word too long to fit gets a line of its own.
-fn wrap(_text: &str, _width: usize, _indent: &str) -> String {
-    todo!()
+fn wrap(text: &str, width: usize, indent: &str) -> String {
+    let mut lines = Vec::new();
+    let mut line = String::new();
+    for word in text.split_whitespace() {
+        if !line.is_empty() && line.chars().count() + 1 + word.chars().count() > width {
+            lines.push(std::mem::take(&mut line));
+        }
+        if line.is_empty() {
+            line.push_str(indent);
+        } else {
+            line.push(' ');
+        }
+        line.push_str(word);
+    }
+    lines.push(line);
+    lines.join("\n")
 }
 
 #[cfg(test)]
