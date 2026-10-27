@@ -33,9 +33,9 @@ git fetch origin
 git worktree add <worktree-path> -b 42-typed-wire-validation origin/main
 ```
 
-Before changing a crate, read its `lib.rs` docs and the ADRs in force for its area, listed in the
-[ADR index](../architecture/decisions/README.md). Check the [glossary](../glossary.md) before
-naming anything new.
+Before changing a crate, read its `lib.rs` docs and the ADRs in force for its area, which
+`cargo xtask adr list --tags` lists by tag. Check the [glossary](../glossary.md) before naming
+anything new.
 
 For work that will span sessions, keep [branch notes](#branch-notes) in the `docs/wip/` directory,
 and open a draft PR early.
@@ -47,7 +47,7 @@ the [template](../templates/design-doc.md). Once the draft is workable, open a d
 the doc to `docs/design/NNNN-short-title.md`, where NNNN is the PR number. The acceptance criteria
 of the design must be concrete enough to turn into tests. A human developer reviews and accepts it
 before implementation starts. If the work requires changing a decision, a superseding ADR is
-accepted first.
+accepted first, which means merged in its own PR.
 
 2. **Tests.** For major and standard changes, write failing tests as a separate commit. Tests for
 major changes are derived from the design doc's acceptance criteria, and for standard changes from

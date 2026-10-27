@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: implemented
 ---
 
 # ADR Directories and the `adr` Command
@@ -106,8 +106,10 @@ supersedes: ADR-0001
 The front matter is a flat subset of YAML, so GitHub still renders it as a table. A plain YAML
 value can't contain `: `, which titles often do, so `title` and `summary` are always
 double-quoted. A quoted value may continue on indented lines, and the line breaks fold into
-single spaces, as in YAML. Quoted values can't contain `"` or `\`, so the parser needs no escape
-handling. Unknown keys are disallowed.
+single spaces, as in YAML. An unindented line ends the value, as YAML's indentation rules require,
+so a missing closing quote is reported where it happens rather than swallowing the lines after it.
+Quoted values can't contain `"` or `\`, so the parser needs no escape handling. Unknown keys are
+disallowed.
 
 ### Tags
 
@@ -223,7 +225,9 @@ force or superseded, and by which ADR. A number with no ADR is an error.
 Entries aren't wrapped, since they're short. With no ADRs, `adr list` and `adr tags` print "None
 yet." The views don't run the checks. An ADR whose front matter can't be read is left out with a
 warning on stderr naming its file, an ADR with no entry in `tags.yaml` is listed without tags, and
-`check-docs` reports the details.
+`check-docs` reports the details. Whether an ADR is in force comes from its directory, and a
+superseded ADR names every ADR that lists it in `supersedes`, or none, so the views stay
+well defined on a branch where checks 5 and 6 fail.
 
 ### Creating and superseding ADRs
 
@@ -293,15 +297,16 @@ fine.
   arguments with spaces, so a quoted title would arrive in pieces, while `cargo xtask` passes
   arguments through the same way in every shell. Recipes stay for the checks that `just ci` runs.
 - The work lands in two PRs. #10 adds the `adr` module and command, runs the new checks in
-  `check-docs` alongside the old ADR and index checks, and updates the docs. A follow-up PR, which
+  `check-docs` alongside the old ADR and index checks, adds `tags.yaml`, and updates the docs. The
+  old checks read only the files directly in `decisions/`, and skip `tags.yaml` as they skip the
+  index, so both sets pass, and `adr new` works before the follow-up lands. A follow-up PR, which
   closes #3, removes the old checks from `docs.rs` with their tests, and removes
-  `decisions/README.md`, which they read. It also adds `tags.yaml`, which the old checks would
-  report as a misnamed ADR. Until then both sets of checks pass, since no ADRs exist.
+  `decisions/README.md`, which they read.
 
 ### Docs to update
 
-- In the follow-up PR, `docs/architecture/decisions/README.md` is removed, and `tags.yaml` is
-  added with no entries.
+- `tags.yaml` is added with no entries. `docs/architecture/decisions/README.md` gains a note
+  that `cargo xtask adr list` replaces it, and the follow-up PR removes it.
 - `docs/templates/adr.md`: the body `adr new` copies, with a comment saying to create ADRs with
   `cargo xtask adr new` rather than by copying the template.
 - `docs/guides/architecture-and-design.md`: the ADR section gains the directories, the tags, the
