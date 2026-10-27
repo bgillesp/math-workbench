@@ -55,7 +55,8 @@ pub(super) fn render(_adrs: &[Adr], _options: &Options) -> Result<String, Unknow
     todo!()
 }
 
-/// `text` wrapped greedily at `width` columns, each line starting with `indent`.
+/// `text` wrapped greedily into lines of at most `width` columns, each starting with `indent`,
+/// which counts toward the width. A word too long to fit gets a line of its own.
 fn wrap(_text: &str, _width: usize, _indent: &str) -> String {
     todo!()
 }
@@ -238,7 +239,9 @@ mod tests {
     #[test]
     fn summaries_wrap_greedily() {
         assert_eq!(wrap("Short summary.", SUMMARY_WIDTH, "  "), "  Short summary.");
+        // A line of exactly `width` columns fits, and the indent counts toward the width.
         assert_eq!(wrap("aaaa bbbb cccc ddd eee", 20, "  "), "  aaaa bbbb cccc ddd\n  eee");
+        assert_eq!(wrap("aaaa bbbb cccc dddd", 20, "  "), "  aaaa bbbb cccc\n  dddd");
         assert_eq!(wrap("a supercalifragilistic b", 12, "  "), "  a\n  supercalifragilistic\n  b");
         assert_eq!(wrap("spaced  out\n  text", SUMMARY_WIDTH, "  "), "  spaced out text");
     }
