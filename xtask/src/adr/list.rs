@@ -125,7 +125,7 @@ mod tests {
         let mut files = sample_files();
         files.push(valid(Active, 5, &[]));
         assert_eq!(
-            render(&load(&files, Some(SAMPLE_TAGS)).adrs, &Options::default()),
+            render(&load(files, Some(SAMPLE_TAGS)).adrs, &Options::default()),
             Ok("- ADR-0002: Versioned project files (file-format)\n\
                 - ADR-0003: Wire types: checked on connect (graph/wires)\n\
                 - ADR-0005: Decision 5\n"

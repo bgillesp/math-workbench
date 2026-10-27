@@ -24,10 +24,8 @@ pub(super) struct FrontMatter {
 /// An ADR, as read from its file and `tags.yaml`.
 #[derive(Debug)]
 pub(super) struct Adr {
-    /// The directory the file is in.
-    pub(super) dir: Dir,
-    /// The repository-relative path of the file.
-    pub(super) path: String,
+    /// The file the ADR was read from, with its full contents.
+    pub(super) file: AdrFile,
     /// The ADR's front matter.
     pub(super) front_matter: FrontMatter,
     /// The ADR's tags, in the order `tags.yaml` lists them.
@@ -35,14 +33,12 @@ pub(super) struct Adr {
     /// The numbers of the ADRs whose `supersedes` lists this one: none for an ADR in force, and
     /// one for a superseded ADR once `check-docs` passes.
     pub(super) successors: Vec<u32>,
-    /// The file's full contents, front matter included.
-    pub(super) text: String,
 }
 
 impl Adr {
     /// Whether the ADR is in force, which its directory decides.
     pub(super) fn is_active(&self) -> bool {
-        self.dir == Dir::Active
+        self.file.dir == Dir::Active
     }
 }
 
@@ -68,7 +64,7 @@ pub(super) fn read_adr_files(_root: &Path) -> io::Result<(Vec<AdrFile>, Option<S
 
 /// Reads the ADRs for the views, leaving out any whose front matter can't be read. An ADR with no
 /// entry in `tags` has no tags.
-pub(super) fn load(_files: &[AdrFile], _tags: Option<&str>) -> Loaded {
+pub(super) fn load(_files: Vec<AdrFile>, _tags: Option<&str>) -> Loaded {
     todo!()
 }
 
@@ -150,7 +146,7 @@ mod tests {
         let mut files = sample_files();
         files.push(file(Active, "0004-broken.md", "No front matter.\n"));
         files.push(valid(Active, 5, &[]));
-        let loaded = load(&files, Some(SAMPLE_TAGS));
+        let loaded = load(files, Some(SAMPLE_TAGS));
         assert_eq!(
             loaded.warnings,
             [format!(

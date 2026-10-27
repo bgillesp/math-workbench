@@ -72,7 +72,7 @@ pub(super) const SAMPLE_TAGS: &str =
 
 /// The sample ADRs, loaded for the views.
 pub(super) fn sample() -> Vec<Adr> {
-    let loaded = load(&sample_files(), Some(SAMPLE_TAGS));
+    let loaded = load(sample_files(), Some(SAMPLE_TAGS));
     assert_eq!(loaded.warnings, Vec::<String>::new());
     loaded.adrs
 }

@@ -51,6 +51,13 @@ struct AdrFile {
     text: String,
 }
 
+impl AdrFile {
+    /// The repository-relative path of the file.
+    fn path(&self) -> String {
+        format!("{ADR_DIR}/{}/{}", self.dir.name(), self.name)
+    }
+}
+
 /// An `adr` subcommand and its arguments.
 #[derive(Debug, PartialEq, Eq)]
 enum Command {
