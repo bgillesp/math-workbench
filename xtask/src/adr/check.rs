@@ -42,7 +42,7 @@ pub(super) enum ProblemKind {
     EmptyField { key: String },
     /// `title` or `summary` isn't double-quoted.
     NotQuoted { key: String },
-    /// A quoted value contains `"` or `\`.
+    /// A quoted value contains `"` or `\`, or has text after its closing quote.
     QuoteOrBackslash { key: String },
     /// A quoted value has no closing quote.
     UnterminatedQuote { key: String },
@@ -104,7 +104,11 @@ impl fmt::Display for ProblemKind {
             Self::EmptyField { key } => write!(f, "`{key}` is empty"),
             Self::NotQuoted { key } => write!(f, "`{key}` needs its value in double quotes"),
             Self::QuoteOrBackslash { key } => {
-                write!(f, "the quoted value of `{key}` contains `\"` or `\\`, which can't be used")
+                write!(
+                    f,
+                    "the quoted value of `{key}` contains `\"` or `\\`, or has text after its \
+                     closing quote"
+                )
             },
             Self::UnterminatedQuote { key } => write!(
                 f,

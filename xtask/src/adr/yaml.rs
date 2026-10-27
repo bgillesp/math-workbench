@@ -39,7 +39,7 @@ pub(super) enum Error {
     MalformedLine { line: String },
     /// The quoted value for `key` has no closing quote.
     UnterminatedQuote { key: String },
-    /// The quoted value for `key` contains `"` or `\`.
+    /// The quoted value for `key` contains `"` or `\`, or has text after its closing quote.
     QuoteOrBackslash { key: String },
 }
 
