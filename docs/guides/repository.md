@@ -161,12 +161,12 @@ with a failure status if it found any. `doctor` only warns, so `just setup` alwa
 The design doc statuses are listed in [docs/README.md](../README.md#statuses).
 
 Each command is a module in `xtask/src/`, listed in `Command::ALL` in `main.rs`, which also
-generates the usage text. `adr` is a directory module with a file for each subcommand, listed in
-its own `SUBCOMMANDS` table, and its checks are in `adr/check.rs`. A check keeps its file and process I/O in a `run` function, and its
-logic in a pure `check` function that the unit tests call directly. Problems are recorded as enum
-values and formatted as messages only at the end, so tests compare exact results. A new check gets
-a recipe under `check-repo` if it should run while working, or joins `check-ready` if it checks
-the state of a branch that's ready to merge.
+generates the usage text. `adr` is a directory module with a file for each subcommand, listed in its
+own `SUBCOMMANDS` table, and its checks are in `adr/check.rs`. A check keeps its file and process
+I/O in a `run` function, and its logic in a pure `check` function that the unit tests call directly.
+Problems are recorded as enum values and formatted as messages only at the end, so tests compare
+exact results. A new check gets a recipe under `check-repo` if it should run while working, or joins
+`check-ready` if it checks the state of a branch that's ready to merge.
 
 `xtask` keeps its dependencies few, with `lexopt` rather than `clap` for arguments and
 `pulldown-cmark` without default features, so it builds quickly however large the application's
