@@ -21,6 +21,9 @@ mod yaml;
 /// The directory that holds the ADRs and `tags.yaml`.
 pub(crate) const ADR_DIR: &str = "docs/architecture/decisions";
 
+/// The repository-relative path of `tags.yaml`.
+const TAGS_PATH: &str = "docs/architecture/decisions/tags.yaml";
+
 /// The directory an ADR is in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Dir {
