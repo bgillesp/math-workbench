@@ -8,8 +8,11 @@ use std::path::Path;
 use super::check::ProblemKind;
 use super::{ADR_DIR, AdrFile, Dir, TAGS_PATH, parse_id, split_tags, yaml};
 
-/// The front matter fields, in the order `adr new` writes them.
-const FIELDS: [&str; 5] = ["id", "title", "summary", "date", "supersedes"];
+/// The front matter fields every ADR must have.
+const REQUIRED_FIELDS: [&str; 4] = ["id", "title", "summary", "date"];
+
+/// The front matter fields an ADR may leave out.
+const OPTIONAL_FIELDS: [&str; 1] = ["supersedes"];
 
 /// The longest a summary can be, in characters.
 const SUMMARY_LIMIT: usize = 300;
@@ -123,7 +126,8 @@ pub(super) fn read_front_matter(text: &str) -> (Fields, Vec<ProblemKind>) {
         });
     }
     for yaml::Entry { key, value } in entries {
-        if !FIELDS.contains(&key.as_str()) {
+        let name = key.as_str();
+        if !REQUIRED_FIELDS.contains(&name) && !OPTIONAL_FIELDS.contains(&name) {
             problems.push(ProblemKind::UnknownKey { key });
             continue;
         }
@@ -164,9 +168,9 @@ pub(super) fn read_front_matter(text: &str) -> (Fields, Vec<ProblemKind>) {
             },
         }
     }
-    for key in &FIELDS[..4] {
-        if !keys.contains(*key) {
-            problems.push(ProblemKind::MissingField { key: (*key).to_string() });
+    for key in REQUIRED_FIELDS {
+        if !keys.contains(key) {
+            problems.push(ProblemKind::MissingField { key: key.to_string() });
         }
     }
     (fields, problems)
