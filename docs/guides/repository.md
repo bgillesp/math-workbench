@@ -240,9 +240,14 @@ and `skip` for tolerated duplicate versions. An entry loosens the check, so it n
 beside it and in the PR, and an `ignore` entry also says when to revisit it.
 
 Dependabot opens one grouped PR a week for cargo dependencies, and one for GitHub Actions, each
-labeled `kind/chore` with a `chore` title. It waits seven days after a release before proposing
-it, so a malicious release is likely to be caught and yanked first. Dependabot doesn't cover the
-toolchain.
+labeled `kind/chore` with a `chore` title. Dependabot doesn't cover the toolchain.
+
+A seven-day cooldown keeps Dependabot from choosing a release until it's a week old, so a malicious
+release is likely to be caught and yanked first. For cargo, that doesn't limit what lands in
+`Cargo.lock`. An [upstream bug](https://github.com/dependabot/dependabot-core/issues/16428) lets a
+lockfile update move to a newer compatible release that's still inside the cooldown, while the PR
+title and commit name the version Dependabot chose. When reviewing a cargo PR, go by the versions in
+the `Cargo.lock` diff.
 
 ## Agent tooling
 
