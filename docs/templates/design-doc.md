@@ -13,7 +13,8 @@ implemented before merge; the doc is frozen from then on.
 
 ## Context
 
-Link the issue and the ADRs this work operates under. What problem does this solve, and why now?
+Link the issue, and cite by id any ADRs the design relies on, as in `ADR-0003`. What problem does
+this solve, and why now?
 
 ## Goals and non-goals
 

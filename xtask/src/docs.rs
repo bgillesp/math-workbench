@@ -19,13 +19,14 @@ use std::process::Command;
 
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
-use crate::{CheckResult, display};
+use crate::{CheckResult, adr, display};
 
 const ADR_DIR: &str = "docs/architecture/decisions";
 pub(crate) const DESIGN_DIR: &str = "docs/design";
 
-/// Files in the ADR directory that aren't ADRs.
-const ADR_OTHER_FILES: &[&str] = &["README.md"];
+/// Files in the ADR directory that aren't ADRs. `tags.yaml` belongs to the ADRs in `active/` and
+/// `superseded/`, which `adr::check_docs` checks.
+const ADR_OTHER_FILES: &[&str] = &["README.md", "tags.yaml"];
 
 const DESIGN_STATUSES: &[&str] = &["draft", "accepted", "implemented"];
 
@@ -37,6 +38,7 @@ const IN_FORCE: &str = "In force";
 struct Problem {
     /// The repository-relative path of the file to fix.
     path: String,
+    /// What's wrong with it.
     kind: ProblemKind,
 }
 
@@ -182,7 +184,9 @@ pub(crate) fn run(root: &Path) -> CheckResult {
         };
         problems.extend(check_links(&path, &text, |target| root.join(target).exists()));
     }
-    Ok(problems.iter().map(ToString::to_string).collect())
+    let mut messages: Vec<String> = problems.iter().map(ToString::to_string).collect();
+    messages.extend(adr::check_docs(root)?);
+    Ok(messages)
 }
 
 /// The name and contents of each file directly inside `dir`.
