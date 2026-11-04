@@ -1,37 +1,28 @@
 //! `check-docs`: ADRs, design docs, and relative links in Markdown files are consistent.
 //!
-//! ADRs and design docs carry their status in front matter:
+//! The ADR checks live in the `adr` module. Design docs carry their status in front matter:
 //!
 //! ```text
 //! ---
-//! status: accepted
-//! supersedes: ADR-0002
+//! status: implemented
 //! ---
 //! ```
 //!
 //! Only flat `key: value` lines are read.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 
-use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{Event, Options, Parser, Tag};
 
 use crate::{CheckResult, adr, display};
 
-const ADR_DIR: &str = "docs/architecture/decisions";
 pub(crate) const DESIGN_DIR: &str = "docs/design";
 
-/// Files in the ADR directory that aren't ADRs. `tags.yaml` belongs to the ADRs in `active/` and
-/// `superseded/`, which `adr::check_docs` checks.
-const ADR_OTHER_FILES: &[&str] = &["README.md", "tags.yaml"];
-
 const DESIGN_STATUSES: &[&str] = &["draft", "accepted", "implemented"];
-
-/// The index section that must list exactly the accepted ADRs.
-const IN_FORCE: &str = "In force";
 
 /// A problem in one file.
 #[derive(Debug, PartialEq, Eq)]
@@ -57,42 +48,6 @@ impl fmt::Display for Problem {
 /// What's wrong with a file.
 #[derive(Debug, PartialEq, Eq)]
 enum ProblemKind {
-    // An ADR on its own
-    /// The file name isn't like `0001-short-title.md`.
-    BadAdrName,
-    /// Another ADR, named `other`, has the same number.
-    DuplicateAdrNumber { number: u32, other: String },
-    /// No line starts with `# ADR-NNNN: `.
-    BadAdrTitle { number: u32 },
-    /// `status` is missing or isn't an ADR status.
-    BadAdrStatus,
-    /// A `supersedes` entry isn't like `ADR-0001`.
-    BadSupersedesEntry { entry: String },
-
-    // Supersede links between ADRs
-    /// `supersedes` lists an ADR that doesn't exist.
-    SupersedesMissingAdr { old: u32 },
-    /// `supersedes` lists the ADR itself.
-    SupersedesItself,
-    /// An ADR that took effect supersedes this one, but this one's status doesn't say so.
-    MissingSupersededBy { new: u32 },
-    /// The status says it's superseded by an ADR that doesn't exist.
-    SupersededByMissingAdr { new: u32 },
-    /// An ADR's status says this one supersedes it, but `supersedes` doesn't list it.
-    MissingSupersedes { old: u32 },
-    /// The status says it's superseded by an ADR that never took effect.
-    SupersedingAdrNotAccepted { new: u32, status: AdrStatus },
-
-    // The ADR index
-    /// There's no `## In force` section.
-    MissingInForceSection,
-    /// An ADR isn't linked anywhere in the index.
-    UnlistedAdr { name: String },
-    /// An accepted ADR is listed outside `## In force`.
-    AcceptedOutsideInForce { number: u32 },
-    /// An ADR that isn't accepted is listed under `## In force`.
-    UnacceptedInForce { number: u32, status: AdrStatus },
-
     // Design docs
     /// The file name isn't like `0042-short-title.md`.
     BadDesignName,
@@ -111,45 +66,6 @@ enum ProblemKind {
 impl fmt::Display for ProblemKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::BadAdrName => f.write_str("ADR file names look like `0001-short-title.md`"),
-            Self::DuplicateAdrNumber { number, other } => {
-                write!(f, "ADR-{number:04} is also used by {other}")
-            },
-            Self::BadAdrTitle { number } => {
-                write!(f, "the title should start with `# ADR-{number:04}:`")
-            },
-            Self::BadAdrStatus => f.write_str(
-                "front matter needs `status:` set to `proposed`, `accepted`, `rejected`, \
-                 `superseded by ADR-NNNN`, or `deprecated`",
-            ),
-            Self::BadSupersedesEntry { entry } => {
-                write!(f, "`supersedes` entries look like `ADR-0001`, not `{entry}`")
-            },
-            Self::SupersedesMissingAdr { old } => {
-                write!(f, "supersedes ADR-{old:04}, which doesn't exist")
-            },
-            Self::SupersedesItself => f.write_str("an ADR can't supersede itself"),
-            Self::MissingSupersededBy { new } => write!(
-                f,
-                "status should be `superseded by ADR-{new:04}`, since that ADR replaces it"
-            ),
-            Self::SupersededByMissingAdr { new } => {
-                write!(f, "superseded by ADR-{new:04}, which doesn't exist")
-            },
-            Self::MissingSupersedes { old } => {
-                write!(f, "front matter should say `supersedes: ADR-{old:04}`")
-            },
-            Self::SupersedingAdrNotAccepted { new, status } => {
-                write!(f, "marked superseded by ADR-{new:04}, which is {status}")
-            },
-            Self::MissingInForceSection => write!(f, "needs a `## {IN_FORCE}` section"),
-            Self::UnlistedAdr { name } => write!(f, "doesn't link {name}"),
-            Self::AcceptedOutsideInForce { number } => {
-                write!(f, "ADR-{number:04} is accepted, so it belongs under `## {IN_FORCE}`")
-            },
-            Self::UnacceptedInForce { number, status } => {
-                write!(f, "ADR-{number:04} is {status}, so it belongs below `## {IN_FORCE}`")
-            },
             Self::BadDesignName => f.write_str(
                 "design doc file names look like `0042-short-title.md`, where 0042 is the number \
                  of the PR that implements it",
@@ -170,10 +86,6 @@ impl fmt::Display for ProblemKind {
 
 pub(crate) fn run(root: &Path) -> CheckResult {
     let mut problems = Vec::new();
-
-    let adrs = read_files(&root.join(ADR_DIR))?;
-    let index = fs::read_to_string(root.join(ADR_DIR).join("README.md"))?;
-    problems.extend(check_adrs(&adrs, &index));
 
     let design_docs = read_files(&root.join(DESIGN_DIR))?;
     problems.extend(check_design_docs(&design_docs));
@@ -236,71 +148,7 @@ fn markdown_options() -> Options {
     Options::ENABLE_TABLES | Options::ENABLE_YAML_STYLE_METADATA_BLOCKS
 }
 
-// ADRs and design docs
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum AdrStatus {
-    Proposed,
-    Accepted,
-    Rejected,
-    SupersededBy(u32),
-    Deprecated,
-}
-
-impl AdrStatus {
-    fn parse(text: &str) -> Option<Self> {
-        match text {
-            "proposed" => Some(Self::Proposed),
-            "accepted" => Some(Self::Accepted),
-            "rejected" => Some(Self::Rejected),
-            "deprecated" => Some(Self::Deprecated),
-            _ => {
-                text.strip_prefix("superseded by ").and_then(parse_adr_ref).map(Self::SupersededBy)
-            },
-        }
-    }
-
-    /// Whether the decision took effect at some point, even if it has since been replaced.
-    fn took_effect(self) -> bool {
-        matches!(self, Self::Accepted | Self::SupersededBy(_) | Self::Deprecated)
-    }
-}
-
-impl fmt::Display for AdrStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Proposed => f.write_str("proposed"),
-            Self::Accepted => f.write_str("accepted"),
-            Self::Rejected => f.write_str("rejected"),
-            Self::SupersededBy(n) => write!(f, "superseded by ADR-{n:04}"),
-            Self::Deprecated => f.write_str("deprecated"),
-        }
-    }
-}
-
-#[derive(Debug)]
-struct Adr {
-    number: u32,
-    name: String,
-    status: AdrStatus,
-    supersedes: Vec<u32>,
-}
-
-impl Adr {
-    fn path(&self) -> String {
-        format!("{ADR_DIR}/{}", self.name)
-    }
-}
-
-/// Parses `ADR-0003` into `3`.
-fn parse_adr_ref(text: &str) -> Option<u32> {
-    let digits = text.strip_prefix("ADR-")?;
-    if digits.len() == 4 && digits.bytes().all(|b| b.is_ascii_digit()) {
-        digits.parse().ok()
-    } else {
-        None
-    }
-}
+// Design docs
 
 /// The number of a document named like `0042-short-title.md`.
 fn doc_number(file_name: &str) -> Option<u32> {
@@ -331,150 +179,6 @@ pub(crate) fn front_matter(text: &str) -> Option<HashMap<&str, &str>> {
         }
     }
     None
-}
-
-/// Checks ADR file names, titles, statuses, supersede links, and the index.
-fn check_adrs(files: &[(String, String)], index: &str) -> Vec<Problem> {
-    let mut problems = Vec::new();
-    let mut adrs: BTreeMap<u32, Adr> = BTreeMap::new();
-    for (name, text) in files {
-        if ADR_OTHER_FILES.contains(&name.as_str()) {
-            continue;
-        }
-        let path = format!("{ADR_DIR}/{name}");
-        let Some(number) = doc_number(name) else {
-            problems.push(Problem::new(path, ProblemKind::BadAdrName));
-            continue;
-        };
-        if let Some(other) = adrs.get(&number) {
-            let other = other.name.clone();
-            problems.push(Problem::new(path, ProblemKind::DuplicateAdrNumber { number, other }));
-            continue;
-        }
-        let title = format!("# ADR-{number:04}: ");
-        if !text.lines().any(|line| line.starts_with(&title)) {
-            problems.push(Problem::new(&path, ProblemKind::BadAdrTitle { number }));
-        }
-        let fields = front_matter(text).unwrap_or_default();
-        let Some(status) = fields.get("status").copied().and_then(AdrStatus::parse) else {
-            problems.push(Problem::new(path, ProblemKind::BadAdrStatus));
-            continue;
-        };
-        let mut supersedes = Vec::new();
-        for item in fields.get("supersedes").into_iter().flat_map(|list| list.split(',')) {
-            let item = item.trim();
-            if let Some(old) = parse_adr_ref(item) {
-                supersedes.push(old);
-            } else {
-                let entry = item.to_string();
-                problems.push(Problem::new(&path, ProblemKind::BadSupersedesEntry { entry }));
-            }
-        }
-        adrs.insert(number, Adr { number, name: name.clone(), status, supersedes });
-    }
-    problems.extend(check_supersede_links(&adrs));
-    problems.extend(check_index(&adrs, index));
-    problems
-}
-
-fn check_supersede_links(adrs: &BTreeMap<u32, Adr>) -> Vec<Problem> {
-    let mut problems = Vec::new();
-    for adr in adrs.values() {
-        for &old in &adr.supersedes {
-            match adrs.get(&old) {
-                None => {
-                    let kind = ProblemKind::SupersedesMissingAdr { old };
-                    problems.push(Problem::new(adr.path(), kind));
-                },
-                Some(_) if old == adr.number => {
-                    problems.push(Problem::new(adr.path(), ProblemKind::SupersedesItself));
-                },
-                Some(old_adr)
-                    if adr.status.took_effect()
-                        && old_adr.status != AdrStatus::SupersededBy(adr.number) =>
-                {
-                    let kind = ProblemKind::MissingSupersededBy { new: adr.number };
-                    problems.push(Problem::new(old_adr.path(), kind));
-                },
-                Some(_) => {},
-            }
-        }
-        if let AdrStatus::SupersededBy(new) = adr.status {
-            match adrs.get(&new) {
-                None => {
-                    let kind = ProblemKind::SupersededByMissingAdr { new };
-                    problems.push(Problem::new(adr.path(), kind));
-                },
-                Some(new_adr) if !new_adr.supersedes.contains(&adr.number) => {
-                    let kind = ProblemKind::MissingSupersedes { old: adr.number };
-                    problems.push(Problem::new(new_adr.path(), kind));
-                },
-                Some(new_adr) if !new_adr.status.took_effect() => {
-                    let kind =
-                        ProblemKind::SupersedingAdrNotAccepted { new, status: new_adr.status };
-                    problems.push(Problem::new(adr.path(), kind));
-                },
-                Some(_) => {},
-            }
-        }
-    }
-    problems
-}
-
-/// Checks that the index lists every ADR, with accepted ADRs, and only those, under "In force".
-fn check_index(adrs: &BTreeMap<u32, Adr>, index: &str) -> Vec<Problem> {
-    let index_path = format!("{ADR_DIR}/README.md");
-    let mut in_force_links = HashSet::new();
-    let mut other_links = HashSet::new();
-    let mut has_in_force = false;
-    let mut in_force = false;
-    let mut heading: Option<String> = None;
-    for event in Parser::new_ext(index, markdown_options()) {
-        match event {
-            Event::Start(Tag::Heading { level: HeadingLevel::H2, .. }) => {
-                heading = Some(String::new());
-            },
-            Event::Text(text) | Event::Code(text) => {
-                if let Some(heading) = heading.as_mut() {
-                    heading.push_str(&text);
-                }
-            },
-            Event::End(TagEnd::Heading(HeadingLevel::H2)) => {
-                in_force = heading.take().is_some_and(|h| h.trim() == IN_FORCE);
-                has_in_force |= in_force;
-            },
-            Event::Start(Tag::Link { dest_url, .. }) => {
-                let target = dest_url.split('#').next().unwrap_or_default();
-                let target = target.strip_prefix("./").unwrap_or(target).to_string();
-                if in_force {
-                    in_force_links.insert(target);
-                } else {
-                    other_links.insert(target);
-                }
-            },
-            _ => {},
-        }
-    }
-
-    let mut problems = Vec::new();
-    if !has_in_force {
-        problems.push(Problem::new(&index_path, ProblemKind::MissingInForceSection));
-    }
-    for adr in adrs.values() {
-        let listed_in_force = in_force_links.contains(&adr.name);
-        let accepted = adr.status == AdrStatus::Accepted;
-        if !listed_in_force && !other_links.contains(&adr.name) {
-            let kind = ProblemKind::UnlistedAdr { name: adr.name.clone() };
-            problems.push(Problem::new(&index_path, kind));
-        } else if accepted && !listed_in_force {
-            let kind = ProblemKind::AcceptedOutsideInForce { number: adr.number };
-            problems.push(Problem::new(&index_path, kind));
-        } else if !accepted && listed_in_force {
-            let kind = ProblemKind::UnacceptedInForce { number: adr.number, status: adr.status };
-            problems.push(Problem::new(&index_path, kind));
-        }
-    }
-    problems
 }
 
 /// Checks design doc file names, numbering, and statuses.
@@ -560,40 +264,9 @@ fn normalize(path: &Path) -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::*;
-
-    fn adr(number: u32, status: &str, supersedes: Option<&str>) -> (String, String) {
-        let supersedes = supersedes.map(|s| format!("supersedes: {s}\n")).unwrap_or_default();
-        (
-            format!("{number:04}-decision.md"),
-            format!("---\nstatus: {status}\n{supersedes}---\n\n# ADR-{number:04}: Decision\n"),
-        )
-    }
-
-    fn index(in_force: &[u32], other: &[u32]) -> String {
-        let links = |numbers: &[u32]| {
-            numbers
-                .iter()
-                .map(|n| format!("- [ADR-{n:04}: Decision]({n:04}-decision.md)\n"))
-                .collect::<Vec<_>>()
-                .concat()
-        };
-        format!(
-            "# ADRs\n\n## In force\n\n### Area\n\n{}\n## History\n\n{}",
-            links(in_force),
-            links(other)
-        )
-    }
-
-    /// A problem in the ADR that `adr` creates for `number`.
-    fn in_adr(number: u32, kind: ProblemKind) -> Problem {
-        Problem::new(format!("{ADR_DIR}/{number:04}-decision.md"), kind)
-    }
-
-    /// A problem in the ADR index.
-    fn in_index(kind: ProblemKind) -> Problem {
-        Problem::new(format!("{ADR_DIR}/README.md"), kind)
-    }
 
     #[test]
     fn doc_numbers() {
@@ -614,138 +287,6 @@ mod tests {
         assert_eq!(fields.get("date"), Some(&"2026-10-17"));
         assert!(front_matter("# Title\n").is_none());
         assert!(front_matter("---\nstatus: accepted\n").is_none());
-    }
-
-    #[test]
-    fn adr_statuses() {
-        assert_eq!(AdrStatus::parse("accepted"), Some(AdrStatus::Accepted));
-        assert_eq!(AdrStatus::parse("superseded by ADR-0007"), Some(AdrStatus::SupersededBy(7)));
-        assert_eq!(AdrStatus::parse("superseded by 7"), None);
-        assert_eq!(AdrStatus::parse("provisional"), None);
-        assert_eq!(AdrStatus::SupersededBy(7).to_string(), "superseded by ADR-0007");
-    }
-
-    #[test]
-    fn consistent_adrs_pass() {
-        let files = [
-            adr(1, "superseded by ADR-0003", None),
-            adr(2, "rejected", None),
-            adr(3, "accepted", Some("ADR-0001")),
-            adr(4, "proposed", Some("ADR-0003")),
-        ];
-        let problems = check_adrs(&files, &index(&[3], &[1, 2, 4]));
-        assert_eq!(problems, Vec::<Problem>::new());
-    }
-
-    #[test]
-    fn empty_index_passes() {
-        let index = "# ADRs\n\n## In force\n\nNone yet.\n";
-        assert_eq!(check_adrs(&[], index), Vec::<Problem>::new());
-    }
-
-    #[test]
-    fn index_needs_in_force_section() {
-        let problems = check_adrs(&[], "# ADRs\n\n## Current\n");
-        assert_eq!(problems, [in_index(ProblemKind::MissingInForceSection)]);
-    }
-
-    #[test]
-    fn duplicate_numbers_fail() {
-        let mut other = adr(1, "accepted", None);
-        other.0 = "0001-other.md".to_string();
-        let problems = check_adrs(&[adr(1, "accepted", None), other], &index(&[1], &[]));
-        assert_eq!(
-            problems,
-            [Problem::new(
-                format!("{ADR_DIR}/0001-other.md"),
-                ProblemKind::DuplicateAdrNumber { number: 1, other: "0001-decision.md".into() },
-            )]
-        );
-    }
-
-    #[test]
-    fn bad_names_titles_and_statuses_fail() {
-        let mut untitled = adr(2, "accepted", None);
-        untitled.1 = untitled.1.replace("# ADR-0002: ", "# ");
-        let files = [
-            ("notes.md".to_string(), String::new()),
-            untitled,
-            adr(3, "provisional", None),
-        ];
-        let problems = check_adrs(&files, &index(&[2], &[]));
-        assert_eq!(
-            problems,
-            [
-                Problem::new(format!("{ADR_DIR}/notes.md"), ProblemKind::BadAdrName),
-                in_adr(2, ProblemKind::BadAdrTitle { number: 2 }),
-                in_adr(3, ProblemKind::BadAdrStatus),
-            ]
-        );
-    }
-
-    #[test]
-    fn accepted_superseding_adr_requires_old_status() {
-        let files = [
-            adr(1, "accepted", None),
-            adr(2, "accepted", Some("ADR-0001")),
-        ];
-        let problems = check_adrs(&files, &index(&[1, 2], &[]));
-        assert_eq!(problems, [in_adr(1, ProblemKind::MissingSupersededBy { new: 2 })]);
-    }
-
-    #[test]
-    fn superseded_by_requires_matching_link_and_acceptance() {
-        let files = [
-            adr(1, "superseded by ADR-0002", None),
-            adr(2, "accepted", None),
-            adr(3, "superseded by ADR-0004", None),
-            adr(4, "proposed", Some("ADR-0003")),
-            adr(5, "superseded by ADR-0009", None),
-        ];
-        let problems = check_adrs(&files, &index(&[2], &[1, 3, 4, 5]));
-        assert_eq!(
-            problems,
-            [
-                in_adr(2, ProblemKind::MissingSupersedes { old: 1 }),
-                in_adr(
-                    3,
-                    ProblemKind::SupersedingAdrNotAccepted { new: 4, status: AdrStatus::Proposed }
-                ),
-                in_adr(5, ProblemKind::SupersededByMissingAdr { new: 9 }),
-            ]
-        );
-    }
-
-    #[test]
-    fn supersedes_must_name_existing_other_adrs() {
-        let files = [adr(1, "accepted", Some("ADR-0001, ADR-0008, 7"))];
-        let problems = check_adrs(&files, &index(&[1], &[]));
-        assert_eq!(
-            problems,
-            [
-                in_adr(1, ProblemKind::BadSupersedesEntry { entry: "7".into() }),
-                in_adr(1, ProblemKind::SupersedesItself),
-                in_adr(1, ProblemKind::SupersedesMissingAdr { old: 8 }),
-            ]
-        );
-    }
-
-    #[test]
-    fn index_sections_must_match_status() {
-        let files = [
-            adr(1, "accepted", None),
-            adr(2, "rejected", None),
-            adr(3, "accepted", None),
-        ];
-        let problems = check_adrs(&files, &index(&[2], &[1]));
-        assert_eq!(
-            problems,
-            [
-                in_index(ProblemKind::AcceptedOutsideInForce { number: 1 }),
-                in_index(ProblemKind::UnacceptedInForce { number: 2, status: AdrStatus::Rejected }),
-                in_index(ProblemKind::UnlistedAdr { name: "0003-decision.md".into() }),
-            ]
-        );
     }
 
     #[test]
@@ -820,17 +361,6 @@ Uses [a reference][ref].
 
     #[test]
     fn problems_display_as_messages() {
-        assert_eq!(
-            in_adr(1, ProblemKind::MissingSupersededBy { new: 2 }).to_string(),
-            "docs/architecture/decisions/0001-decision.md: status should be \
-             `superseded by ADR-0002`, since that ADR replaces it"
-        );
-        assert_eq!(
-            in_index(ProblemKind::UnacceptedInForce { number: 2, status: AdrStatus::Rejected })
-                .to_string(),
-            "docs/architecture/decisions/README.md: ADR-0002 is rejected, so it belongs below \
-             `## In force`"
-        );
         assert_eq!(
             Problem::new("docs/README.md", ProblemKind::BrokenLink { dest: "x.md#top".into() })
                 .to_string(),

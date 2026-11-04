@@ -150,9 +150,7 @@ with a failure status if it found any. `doctor` only warns, so `just setup` alwa
   numbers, at most one successor for each ADR, an ADR in `superseded/` exactly when a later ADR
   supersedes it, and exactly one entry in `tags.yaml` for each ADR, with at least one well-formed
   tag. The [architecture and design guide](architecture-and-design.md#architecture-decision-records)
-  describes the layout. Until a follow-up PR for
-  [#3](https://github.com/bgillesp/math-workbench/issues/3) removes them, `check-docs` also runs
-  the earlier checks of ADRs kept directly in `decisions/` and of the index in its `README.md`.
+  describes the layout.
 - Design docs in `docs/design/`: file names, unique numbers, and statuses.
 - Every Markdown file that git tracks or would track: relative links and images must point to
   files in the repository. A path starting with `/` resolves from the repository root. Links with
