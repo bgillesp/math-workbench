@@ -18,7 +18,7 @@ enum Problem {
     /// A file named `name` is in `docs/wip/`.
     BranchNotes { name: String },
     /// The design doc named `name` has a status other than `implemented`, or none.
-    DesignNotImplemented { name: String, status: Option<String> },
+    DesignNotAccepted { name: String, status: Option<String> },
 }
 
 impl fmt::Display for Problem {
@@ -29,12 +29,12 @@ impl fmt::Display for Problem {
                 "{WIP_DIR}/{name}: move branch notes to their permanent homes before merge \
                  (see docs/guides/development.md#branch-notes)"
             ),
-            Self::DesignNotImplemented { name, status: Some(status) } => write!(
+            Self::DesignNotAccepted { name, status: Some(status) } => write!(
                 f,
                 "{DESIGN_DIR}/{name}: status is `{status}`; revise the doc to describe what was \
                  built and set it to `implemented` before merge"
             ),
-            Self::DesignNotImplemented { name, status: None } => write!(
+            Self::DesignNotAccepted { name, status: None } => write!(
                 f,
                 "{DESIGN_DIR}/{name}: no status; revise the doc to describe what was built and \
                  set it to `implemented` before merge"
@@ -63,7 +63,7 @@ fn check(notes: &[String], design_docs: &[(String, String)]) -> Vec<Problem> {
     for (name, text) in design_docs {
         let status = docs::front_matter(text).and_then(|fields| fields.get("status").copied());
         if status != Some("implemented") {
-            problems.push(Problem::DesignNotImplemented {
+            problems.push(Problem::DesignNotAccepted {
                 name: name.clone(),
                 status: status.map(str::to_string),
             });
@@ -82,7 +82,10 @@ mod tests {
 
     #[test]
     fn ready_branch_passes() {
-        let design_docs = [design_doc("0002-conventions.md", "implemented")];
+        let design_docs = [
+            design_doc("0002-conventions.md", "implemented"),
+            design_doc("0004-accepted.md", "accepted"),
+        ];
         assert_eq!(check(&[], &design_docs), Vec::<Problem>::new());
     }
 
@@ -99,7 +102,7 @@ mod tests {
     }
 
     #[test]
-    fn unimplemented_design_docs_fail() {
+    fn unaccepted_design_docs_fail() {
         let design_docs = [
             design_doc("0002-conventions.md", "implemented"),
             design_doc("0003-draft.md", "draft"),
@@ -109,15 +112,11 @@ mod tests {
         assert_eq!(
             check(&[], &design_docs),
             [
-                Problem::DesignNotImplemented {
+                Problem::DesignNotAccepted {
                     name: "0003-draft.md".into(),
                     status: Some("draft".into()),
                 },
-                Problem::DesignNotImplemented {
-                    name: "0004-accepted.md".into(),
-                    status: Some("accepted".into()),
-                },
-                Problem::DesignNotImplemented { name: "0005-no-status.md".into(), status: None },
+                Problem::DesignNotAccepted { name: "0005-no-status.md".into(), status: None },
             ]
         );
     }
@@ -130,19 +129,19 @@ mod tests {
              docs/guides/development.md#branch-notes)"
         );
         assert_eq!(
-            Problem::DesignNotImplemented {
+            Problem::DesignNotAccepted {
                 name: "0003-draft.md".into(),
                 status: Some("draft".into()),
             }
             .to_string(),
-            "docs/design/0003-draft.md: status is `draft`; revise the doc to describe what was \
-             built and set it to `implemented` before merge"
+            "docs/design/0003-draft.md: status is `draft`; a human developer must accept the \
+             design before merge (status `accepted` or `implemented`)"
         );
         assert_eq!(
-            Problem::DesignNotImplemented { name: "0005-no-status.md".into(), status: None }
+            Problem::DesignNotAccepted { name: "0005-no-status.md".into(), status: None }
                 .to_string(),
-            "docs/design/0005-no-status.md: no status; revise the doc to describe what was built \
-             and set it to `implemented` before merge"
+            "docs/design/0005-no-status.md: no status; a human developer must accept the design \
+             before merge (status `accepted` or `implemented`)"
         );
     }
 }
