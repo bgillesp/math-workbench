@@ -102,8 +102,8 @@ struct Subcommand {
 const SUBCOMMANDS: [Subcommand; 2] = [
     Subcommand {
         name: "list",
-        args: "[--all] [--verbose] [--tags=<tags>]",
-        summary: "the ADRs in force by number, or grouped under the given tags",
+        args: "[--all] [--verbose] [--tags[=<tags>]]",
+        summary: "the ADRs in force by number, or grouped by tag",
         parse: |parser| list::parse_args(parser).map(Command::List),
     },
     Subcommand {

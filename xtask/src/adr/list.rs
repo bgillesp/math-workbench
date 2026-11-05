@@ -1,4 +1,6 @@
-//! `adr list`: the ADRs by number, or grouped under the given tags.
+//! `adr list`: the ADRs by number, or grouped by tag.
+
+use std::collections::BTreeSet;
 
 use super::list_arg;
 use super::records::Adr;
@@ -12,6 +14,8 @@ pub(super) enum Grouping {
     /// One list, by number.
     #[default]
     Flat,
+    /// Grouped under every tag of the ADRs shown, alphabetically.
+    AllTags,
     /// Grouped under the given tags, in the order given.
     Tags(Vec<String>),
 }
@@ -37,11 +41,18 @@ pub(super) fn parse_args(mut parser: lexopt::Parser) -> Result<Options, lexopt::
             Long("all") => options.all = true,
             Long("verbose") => options.verbose = true,
             Long("tags") => {
-                let value = parser.optional_value().ok_or(
-                    "`--tags` takes its value attached, as in `--tags=graph,wires`; `cargo xtask \
-                     adr tags` lists the tags",
-                )?;
-                options.grouping = Grouping::Tags(list_arg("tags", value, "tag")?);
+                options.grouping = match parser.optional_value() {
+                    Some(value) => Grouping::Tags(list_arg("tags", value, "tag")?),
+                    None => Grouping::AllTags,
+                };
+            },
+            // `adr list` takes no other values, so this one is meant for `--tags`.
+            Value(value) => {
+                let value = value.to_string_lossy();
+                return Err(format!(
+                    "`{value}` looks like a value for `--tags`; attach it as `--tags={value}`"
+                )
+                .into());
             },
             arg => return Err(arg.unexpected()),
         }
@@ -61,13 +72,22 @@ pub(super) fn render(adrs: &[Adr], options: &Options) -> Result<String, String> 
         }
         adrs.iter().map(|adr| entry(adr, options.verbose)).collect()
     };
-    let tags = match &options.grouping {
+    let tags: Vec<&String> = match &options.grouping {
         Grouping::Flat => return Ok(entries(&shown)),
-        Grouping::Tags(tags) => tags,
+        Grouping::AllTags => {
+            let tags: BTreeSet<&String> = shown.iter().flat_map(|adr| &adr.tags).collect();
+            tags.into_iter().collect()
+        },
+        Grouping::Tags(tags) => {
+            let unknown = tags.iter().find(|tag| !adrs.iter().any(|adr| adr.tags.contains(tag)));
+            if let Some(tag) = unknown {
+                return Err(format!(
+                    "there's no tag `{tag}`; `cargo xtask adr tags` lists the tags"
+                ));
+            }
+            tags.iter().collect()
+        },
     };
-    if let Some(tag) = tags.iter().find(|tag| !adrs.iter().any(|adr| adr.tags.contains(tag))) {
-        return Err(format!("there's no tag `{tag}`; `cargo xtask adr tags` lists the tags"));
-    }
     let groups: Vec<String> = tags
         .iter()
         .map(|tag| {
