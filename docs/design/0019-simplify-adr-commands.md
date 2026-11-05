@@ -390,14 +390,14 @@ structural problem on a branch will stop `context` as it stops `adr list`.
 | `mod.rs` | 288 + 41 | 100 + 15 | Dispatch, usage, `Dir`, ids and names |
 | `records.rs` | 312 + 102 | 150 + 100 | `load`, `load_tags`, the structural checks |
 | `check.rs` | 303 + 302 | 170 + 140 | `Problem`, the consistency checks |
-| `list.rs` | 158 + 185 | 105 + 115 | `adr list` and `adr tags` |
+| `list.rs` | 158 + 185 | 150 + 180 | `adr list` and `adr tags` |
 | `yaml.rs` | 131 + 69 | 75 + 50 | Flat YAML entries and their errors |
 | `fixtures.rs` | 161 | 50 | Sample ADRs, one scratch directory helper |
 | `new.rs` | 368 + 221 | Removed | |
 | `print.rs` | 53 + 39 | Removed | |
 | `tags.rs` | 33 + 24 | Removed | Moves into `list.rs` |
 
-That's from 2,790 lines to about 1,000. `AdrFile` goes, since nothing keeps a file's text after
+That's from 2,790 lines to about 1,200. `AdrFile` goes, since nothing keeps a file's text after
 parsing it. `docs::front_matter` stays as it is, since design docs have a single `status` field.
 
 The work lands in three PRs, each with its own test review, with sizes as estimates until a PR is
