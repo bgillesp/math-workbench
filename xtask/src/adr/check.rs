@@ -4,7 +4,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt;
 
-use super::records::{Fields, read_front_matter};
+use super::records::{Fields, Records, read_front_matter};
 use super::{AdrFile, Dir, TAGS_PATH, file_number, ids, is_tag, parse_id, split_tags, yaml};
 
 /// A problem in one file.
@@ -28,6 +28,8 @@ pub(super) enum ProblemKind {
     // An ADR on its own
     /// The file name isn't like `0003-short-title.md`.
     BadName,
+    /// The file name isn't like `0003-short-title.md`, with the `number` in `id`.
+    NameMismatch { number: u32 },
     /// The file doesn't start with a front matter block.
     NoFrontMatter,
     /// A front matter line isn't `key: value` or the continuation of a quoted value.
@@ -86,6 +88,11 @@ impl fmt::Display for ProblemKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::BadName => write!(f, "ADR file names look like `0003-short-title.md`"),
+            Self::NameMismatch { number } => write!(
+                f,
+                "`id` is ADR-{number:04}, so the file name should look like \
+                 `{number:04}-short-title.md`"
+            ),
             Self::NoFrontMatter => {
                 write!(f, "the file doesn't start with front matter between `---` lines")
             },
@@ -170,8 +177,13 @@ struct Checked<'a> {
     fields: Fields,
 }
 
+/// Runs the consistency checks.
+pub(super) fn check(_records: &Records) -> Vec<Problem> {
+    todo!("the consistency checks")
+}
+
 /// Checks the ADRs and `tags.yaml` (`None` if it's missing).
-pub(super) fn check(files: &[AdrFile], tags: Option<&str>) -> Vec<Problem> {
+pub(super) fn check_files(files: &[AdrFile], tags: Option<&str>) -> Vec<Problem> {
     let mut problems = Vec::new();
     let mut adrs = Vec::new();
     let mut paths: HashMap<u32, String> = HashMap::new();
@@ -283,16 +295,18 @@ fn check_tags(adrs: &[Checked<'_>], tags: &str) -> Vec<Problem> {
 #[cfg(test)]
 mod tests {
     use super::ProblemKind::{
-        ActiveButSuperseded, BadDate, BadId, BadName, BadSupersedesEntry, BadTag, DuplicateId,
-        DuplicateKey, DuplicateTagsEntry, EmptyField, IdMismatch, MalformedLine, MissingField,
-        NotQuoted, QuoteOrBackslash, SummaryTooLong, SupersededButNotListed, SupersededByMany,
-        SupersedesMissing, SupersedesNotLower, TagsForMissingAdr, TagsMalformedLine, UnknownKey,
-        UnterminatedQuote,
+        ActiveButSuperseded, BadDate, BadTag, DuplicateId, EmptyField, NameMismatch,
+        SummaryTooLong, SupersededButNotListed, SupersededByMany, SupersedesMissing,
+        SupersedesNotLower, TagsForMissingAdr, UnknownKey,
     };
     use super::*;
     use crate::adr::Dir::{Active, Superseded};
-    use crate::adr::fixtures::{file, tags_for, valid, with_front_matter};
-    use crate::adr::{TAGS_PATH, adr_path};
+    use crate::adr::fixtures::{named, valid, with_front_matter};
+    use crate::adr::records::parse;
+    use crate::adr::{AdrFile, adr_path};
+
+    /// The file name of an ADR from `with_fields`.
+    const NAME: &str = "0001-decision.md";
 
     fn problem(path: &str, kind: ProblemKind) -> Problem {
         Problem { path: path.to_string(), kind }
@@ -304,14 +318,21 @@ mod tests {
         problems
     }
 
-    fn key(name: &str) -> String {
-        name.to_string()
+    /// The consistency problems with `files` and `tags`, which have to pass the structural checks.
+    fn problems_in(files: &[AdrFile], tags: Option<&str>) -> Vec<Problem> {
+        sorted(check(&parse(files, tags).unwrap()))
+    }
+
+    /// ADR-0001, named `NAME`, with these values for its other fields.
+    fn with_fields(title: &str, summary: &str, date: &str) -> AdrFile {
+        let front_matter =
+            format!("id: ADR-0001\ntitle: {title}\nsummary: {summary}\ndate: {date}\n");
+        with_front_matter(Active, NAME, &front_matter)
     }
 
     #[test]
-    fn empty_directories_pass() {
-        assert_eq!(check(&[], None), Vec::<Problem>::new());
-        assert_eq!(check(&[], Some("")), Vec::<Problem>::new());
+    fn no_adrs_pass() {
+        assert_eq!(check(&Records::default()), Vec::<Problem>::new());
     }
 
     #[test]
@@ -321,182 +342,151 @@ mod tests {
             valid(Superseded, 2, &[1]),
             valid(Active, 3, &[2]),
         ];
-        assert_eq!(check(&files, Some(&tags_for(&[1, 2, 3]))), Vec::<Problem>::new());
+        assert_eq!(problems_in(&files, Some("ADR-0003: graph\n")), Vec::<Problem>::new());
     }
 
     #[test]
-    fn file_names_must_be_numbered() {
-        let files = [
-            valid(Active, 1, &[]),
-            file(Active, "notes.md", "---\n---\n"),
-            file(Active, "0004.md", "---\n---\n"),
-            file(Superseded, "4-short.md", "---\n---\n"),
-        ];
-        let notes = &adr_path(Active, "notes.md");
-        let no_slug = &adr_path(Active, "0004.md");
-        let unpadded = &adr_path(Superseded, "4-short.md");
-        assert_eq!(
-            sorted(check(&files, Some(&tags_for(&[1])))),
-            sorted(vec![
-                problem(notes, BadName),
-                problem(no_slug, BadName),
-                problem(unpadded, BadName),
-            ])
-        );
-    }
-
-    #[test]
-    fn front_matter_fields_are_checked() {
-        let name = "0001-decision.md";
-        let path = &adr_path(Active, name);
-        let check_one = |front_matter: &str| {
-            check(&[with_front_matter(Active, name, front_matter)], Some(&tags_for(&[1])))
-        };
-        let fields = "title: \"T\"\nsummary: \"S.\"\ndate: 2026-11-02\n";
-        assert_eq!(check_one(fields), [problem(path, MissingField { key: key("id") })]);
-        assert_eq!(
-            check_one(&format!("id: ADR-0001\n{fields}summary: \"Again.\"\n")),
-            [problem(path, DuplicateKey { key: key("summary") })]
-        );
-        assert_eq!(
-            check_one(&format!("id: ADR-0001\n{fields}area: graph\n")),
-            [problem(path, UnknownKey { key: key("area") })]
-        );
-        assert_eq!(
-            check_one("id: ADR-0001\ntitle: \"T\"\nsummary: \"\"\ndate: 2026-11-02\n"),
-            [problem(path, EmptyField { key: key("summary") })]
-        );
-        assert_eq!(
-            check_one("id: ADR-0001\ntitle: \"T\"\nsummary: \"S.\"\ndate:\n"),
-            [problem(path, EmptyField { key: key("date") })]
-        );
-        assert_eq!(
-            check_one(&format!("id: ADR-0001\n{fields}not a field\n")),
-            [problem(path, MalformedLine { line: "not a field".into() })]
-        );
-        assert_eq!(
-            check_one(&format!("id: 1\n{fields}")),
-            [problem(path, BadId { value: "1".into() })]
-        );
-        for date in ["2026-11-2", "2026-13-01", "2026-11-32", "November 2, 2026"] {
+    fn file_names_must_be_numbered_with_the_id() {
+        for name in [
+            "notes.md",
+            "0001.md",
+            "1-short.md",
+            "0002-short.md",
+            "0001-Short.md",
+            "0001-short.txt",
+        ] {
             assert_eq!(
-                check_one(&format!("id: ADR-0001\ntitle: \"T\"\nsummary: \"S.\"\ndate: {date}\n")),
-                [problem(path, BadDate { value: date.into() })],
+                problems_in(&[named(Active, name, 1)], None),
+                [problem(&adr_path(Active, name), NameMismatch { number: 1 })],
+                "{name}"
+            );
+        }
+        // The same goes for `superseded/`.
+        assert_eq!(
+            problems_in(&[named(Superseded, "notes.md", 1), valid(Active, 2, &[1])], None),
+            [problem(
+                &adr_path(Superseded, "notes.md"),
+                NameMismatch { number: 1 }
+            )]
+        );
+    }
+
+    #[test]
+    fn title_and_summary_must_not_be_empty() {
+        let path = &adr_path(Active, NAME);
+        for empty in ["\"\"", ""] {
+            assert_eq!(
+                problems_in(&[with_fields(empty, "\"S.\"", "2026-11-02")], None),
+                [problem(path, EmptyField { key: "title".into() })]
+            );
+            assert_eq!(
+                problems_in(&[with_fields("\"T\"", empty, "2026-11-02")], None),
+                [problem(path, EmptyField { key: "summary".into() })]
+            );
+        }
+    }
+
+    #[test]
+    fn summaries_have_a_limit() {
+        let summary = |chars: usize| format!("\"{}\"", "x".repeat(chars));
+        assert_eq!(
+            problems_in(&[with_fields("\"T\"", &summary(300), "2026-11-02")], None),
+            Vec::<Problem>::new()
+        );
+        assert_eq!(
+            problems_in(&[with_fields("\"T\"", &summary(301), "2026-11-02")], None),
+            [problem(
+                &adr_path(Active, NAME),
+                SummaryTooLong { chars: 301 }
+            )]
+        );
+    }
+
+    #[test]
+    fn dates_must_be_real() {
+        for date in [
+            "",
+            "YYYY-MM-DD",
+            "2026-11-2",
+            "2026-13-01",
+            "2026-11-32",
+            "2026-02-29",
+            "November 2, 2026",
+        ] {
+            assert_eq!(
+                problems_in(&[with_fields("\"T\"", "\"S.\"", date)], None),
+                [problem(
+                    &adr_path(Active, NAME),
+                    BadDate { value: date.into() }
+                )],
+                "{date}"
+            );
+        }
+        for date in ["2026-11-02", "2024-02-29"] {
+            assert_eq!(
+                problems_in(&[with_fields("\"T\"", "\"S.\"", date)], None),
+                Vec::<Problem>::new(),
                 "{date}"
             );
         }
     }
 
     #[test]
-    fn quoting_is_checked() {
-        let name = "0001-decision.md";
-        let path = &adr_path(Active, name);
-        let check_one = |title: &str, summary: &str| {
-            let front_matter =
-                format!("id: ADR-0001\ntitle: {title}\nsummary: {summary}\ndate: 2026-11-02\n");
-            check(&[with_front_matter(Active, name, &front_matter)], Some(&tags_for(&[1])))
-        };
+    fn numbers_must_be_unique_across_directories() {
+        let files = [
+            valid(Active, 3, &[]),
+            named(Superseded, "0003-another.md", 3),
+        ];
+        let first = adr_path(Active, "0003-decision-3.md");
+        let second = &adr_path(Superseded, "0003-another.md");
         assert_eq!(
-            check_one("Unquoted", "\"S.\""),
-            [problem(path, NotQuoted { key: key("title") })]
-        );
-        assert_eq!(
-            check_one("\"T\"", "Unquoted."),
-            [problem(path, NotQuoted { key: key("summary") })]
-        );
-        assert_eq!(
-            check_one("\"T\"", "\"A \"quoted\" word.\""),
-            [problem(path, QuoteOrBackslash { key: key("summary") })]
-        );
-        assert_eq!(
-            check_one("\"Back\\slash\"", "\"S.\""),
-            [problem(path, QuoteOrBackslash { key: key("title") })]
-        );
-        assert_eq!(
-            check_one("\"T\"", "\"Never closed."),
-            [problem(path, UnterminatedQuote { key: key("summary") })]
-        );
-        let long = format!("\"{}\"", "x".repeat(301));
-        assert_eq!(check_one("\"T\"", &long), [problem(path, SummaryTooLong { chars: 301 })]);
-        let at_limit = format!("\"{}\"", "x".repeat(300));
-        assert_eq!(check_one("\"T\"", &at_limit), Vec::<Problem>::new());
-    }
-
-    #[test]
-    fn ids_must_match_names_and_be_unique() {
-        let mismatched = with_front_matter(
-            Active,
-            "0002-decision.md",
-            "id: ADR-0003\ntitle: \"T\"\nsummary: \"S.\"\ndate: 2026-11-02\n",
-        );
-        let path = &adr_path(Active, "0002-decision.md");
-        assert_eq!(
-            check(&[mismatched], Some(&tags_for(&[2]))),
-            [problem(path, IdMismatch { id: 3 })]
-        );
-
-        let first = valid(Active, 3, &[]);
-        let mut second = valid(Superseded, 3, &[]);
-        second.name = "0003-another.md".into();
-        let first_path = adr_path(Active, "0003-decision-3.md");
-        let second_path = &adr_path(Superseded, "0003-another.md");
-        assert_eq!(
-            sorted(check(&[first, second], Some(&tags_for(&[3])))),
+            problems_in(&files, None),
             sorted(vec![
-                problem(second_path, DuplicateId { number: 3, other: first_path }),
-                problem(second_path, SupersededButNotListed),
+                problem(second, DuplicateId { number: 3, other: first }),
+                problem(second, SupersededButNotListed),
             ])
         );
     }
 
     #[test]
-    fn supersedes_entries_must_be_ids_of_existing_lower_adrs() {
-        let bad_entry = with_front_matter(
-            Active,
-            "0002-decision-2.md",
-            "id: ADR-0002\ntitle: \"T\"\nsummary: \"S.\"\ndate: 2026-11-02\nsupersedes: 1\n",
-        );
+    fn supersedes_entries_must_name_existing_lower_adrs() {
         let path = &adr_path(Active, "0002-decision-2.md");
         assert_eq!(
-            check(&[valid(Active, 1, &[]), bad_entry], Some(&tags_for(&[1, 2]))),
-            [problem(path, BadSupersedesEntry { entry: "1".into() })]
-        );
-        assert_eq!(
-            check(&[valid(Active, 2, &[7])], Some(&tags_for(&[2]))),
+            problems_in(&[valid(Active, 2, &[7])], None),
             [problem(path, SupersedesMissing { number: 7 })]
         );
         assert_eq!(
-            sorted(check(&[valid(Active, 2, &[2])], Some(&tags_for(&[2])))),
+            problems_in(&[valid(Active, 2, &[2])], None),
             sorted(vec![
                 problem(path, SupersedesNotLower { number: 2 }),
                 problem(path, ActiveButSuperseded { by: 2 }),
             ])
         );
         assert_eq!(
-            check(&[valid(Superseded, 3, &[]), valid(Active, 2, &[3])], Some(&tags_for(&[2, 3]))),
+            problems_in(&[valid(Superseded, 3, &[]), valid(Active, 2, &[3])], None),
             [problem(path, SupersedesNotLower { number: 3 })]
         );
     }
 
     #[test]
     fn superseded_adrs_have_one_successor_and_live_in_superseded() {
+        let superseded = &adr_path(Superseded, "0001-decision-1.md");
+        let active = &adr_path(Active, "0001-decision-1.md");
         let files = [
             valid(Superseded, 1, &[]),
             valid(Active, 2, &[1]),
             valid(Active, 3, &[1]),
         ];
-        let superseded = &adr_path(Superseded, "0001-decision-1.md");
-        let active = &adr_path(Active, "0001-decision-1.md");
         assert_eq!(
-            check(&files, Some(&tags_for(&[1, 2, 3]))),
+            problems_in(&files, None),
             [problem(superseded, SupersededByMany { by: vec![2, 3] })]
         );
         assert_eq!(
-            check(&[valid(Superseded, 1, &[])], Some(&tags_for(&[1]))),
+            problems_in(&[valid(Superseded, 1, &[])], None),
             [problem(superseded, SupersededButNotListed)]
         );
         assert_eq!(
-            check(&[valid(Active, 1, &[]), valid(Active, 2, &[1])], Some(&tags_for(&[1, 2]))),
+            problems_in(&[valid(Active, 1, &[]), valid(Active, 2, &[1])], None),
             [problem(active, ActiveButSuperseded { by: 2 })]
         );
     }
@@ -510,34 +500,44 @@ mod tests {
             Some("ADR-0001: graph\n"),
             Some("ADR-0001:\n"),
         ] {
-            assert_eq!(check(&files, tags), Vec::<Problem>::new(), "{tags:?}");
+            assert_eq!(problems_in(&files, tags), Vec::<Problem>::new(), "{tags:?}");
         }
     }
 
     #[test]
-    fn tags_entries_must_be_well_formed() {
-        let files = [valid(Active, 1, &[])];
-        let tags = "ADR-0001: graph\nADR-0001: wires\nADR-0004: graph\n";
+    fn tags_must_name_existing_adrs() {
         assert_eq!(
-            sorted(check(&files, Some(tags))),
+            problems_in(
+                &[valid(Active, 1, &[])],
+                Some("ADR-0001: graph\nADR-0004: graph, wires\n")
+            ),
+            [problem(TAGS_PATH, TagsForMissingAdr { number: 4 })]
+        );
+    }
+
+    #[test]
+    fn one_run_reports_every_consistency_problem() {
+        let files = [
+            named(Active, "notes.md", 1),
+            with_front_matter(
+                Active,
+                "0002-decision-2.md",
+                "id: ADR-0002\ntitle: \"\"\nsummary: \"S.\"\ndate: soon\n",
+            ),
+            valid(Active, 3, &[9]),
+            valid(Superseded, 4, &[]),
+        ];
+        let second = &adr_path(Active, "0002-decision-2.md");
+        assert_eq!(
+            problems_in(&files, Some("ADR-0008: graph\n")),
             sorted(vec![
-                problem(TAGS_PATH, DuplicateTagsEntry { number: 1 }),
-                problem(TAGS_PATH, TagsForMissingAdr { number: 4 }),
+                problem(&adr_path(Active, "notes.md"), NameMismatch { number: 1 }),
+                problem(second, EmptyField { key: "title".into() }),
+                problem(second, BadDate { value: "soon".into() }),
+                problem(&adr_path(Active, "0003-decision-3.md"), SupersedesMissing { number: 9 }),
+                problem(&adr_path(Superseded, "0004-decision-4.md"), SupersededButNotListed),
+                problem(TAGS_PATH, TagsForMissingAdr { number: 8 }),
             ])
-        );
-        assert_eq!(
-            check(&files[..1], Some("ADR-0001: graph, Wires, two words\n")),
-            [
-                problem(TAGS_PATH, BadTag { number: 1, tag: "Wires".into() }),
-                problem(TAGS_PATH, BadTag { number: 1, tag: "two words".into() }),
-            ]
-        );
-        assert_eq!(
-            check(&files[..1], Some("ADR-0001: graph\ngraph: ADR-0001\n")),
-            [problem(
-                TAGS_PATH,
-                TagsMalformedLine { line: "graph: ADR-0001".into() }
-            )]
         );
     }
 
@@ -547,16 +547,16 @@ mod tests {
         let active = &adr_path(Active, "0002-decision-2.md");
         let superseded = &adr_path(Superseded, "0002-decision-2.md");
         assert_eq!(
-            problem(notes, BadName).to_string(),
-            "docs/architecture/decisions/active/notes.md: ADR file names look like \
-             `0003-short-title.md`"
+            problem(notes, NameMismatch { number: 2 }).to_string(),
+            "docs/architecture/decisions/active/notes.md: `id` is ADR-0002, so the file name \
+             should look like `0002-short-title.md`"
         );
         assert_eq!(
-            problem(active, EmptyField { key: key("summary") }).to_string(),
+            problem(active, EmptyField { key: "summary".into() }).to_string(),
             "docs/architecture/decisions/active/0002-decision-2.md: `summary` is empty"
         );
         assert_eq!(
-            problem(active, UnknownKey { key: key("area") }).to_string(),
+            problem(active, UnknownKey { key: "area".into() }).to_string(),
             "docs/architecture/decisions/active/0002-decision-2.md: `area` isn't an ADR front \
              matter field"
         );

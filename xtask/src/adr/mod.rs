@@ -138,7 +138,7 @@ pub(crate) fn run(root: &Path, parser: lexopt::Parser) -> ExitCode {
 /// The ADR checks that `check-docs` runs, as messages.
 pub(crate) fn check_docs(root: &Path) -> io::Result<Vec<String>> {
     let (files, tags) = records::read_adr_files(root)?;
-    Ok(check::check(&files, tags.as_deref()).iter().map(ToString::to_string).collect())
+    Ok(check::check_files(&files, tags.as_deref()).iter().map(ToString::to_string).collect())
 }
 
 /// Runs `command` against the repository at `root`, and returns what it prints, or a message for
@@ -260,10 +260,181 @@ fn split_tags(value: &str) -> impl Iterator<Item = &str> {
 
 #[cfg(test)]
 mod tests {
+    use super::Dir::{Active, Superseded};
+    use super::check::ProblemKind::{
+        BadDate, BadTag, NoFrontMatter, SupersedesMissing, TagsForMissingAdr,
+    };
+    use super::check::{Problem, ProblemKind};
+    use super::fixtures::{TempRoot, file, valid, with_front_matter};
     use super::*;
 
     fn parse(args: &[&str]) -> Result<Command, String> {
         parse_args(lexopt::Parser::from_args(args)).map_err(|err| err.to_string())
+    }
+
+    /// A scratch repository with these ADRs, and `tags` as `tags.yaml`.
+    fn repository(name: &str, files: &[AdrFile], tags: &str) -> TempRoot {
+        let root = TempRoot::new(name);
+        for adr in files {
+            root.write_adr(adr);
+        }
+        root.write(TAGS_PATH, tags);
+        root
+    }
+
+    /// The message for a problem at `path`.
+    fn message(path: &str, kind: ProblemKind) -> String {
+        Problem { path: path.to_string(), kind }.to_string()
+    }
+
+    /// Messages in a fixed order, so tests don't depend on the order checks run in.
+    fn sorted(mut messages: Vec<String>) -> Vec<String> {
+        messages.sort();
+        messages
+    }
+
+    /// ADR-0001, whose `date` is a consistency problem.
+    fn bad_date() -> AdrFile {
+        with_front_matter(
+            Active,
+            "0001-decision-1.md",
+            "id: ADR-0001\ntitle: \"T\"\nsummary: \"S.\"\ndate: soon\n",
+        )
+    }
+
+    /// ADR-0002, which has no front matter, a structural problem.
+    fn no_block() -> AdrFile {
+        file(Active, "0002-no-block.md", "# ADR-0002\n")
+    }
+
+    #[test]
+    fn check_docs_passes_without_adrs() {
+        let root = TempRoot::new("no-adrs");
+        assert_eq!(check_docs(&root.0).unwrap(), Vec::<String>::new());
+        for dir in [Active, Superseded] {
+            std::fs::create_dir_all(root.0.join(ADR_DIR).join(dir.name())).unwrap();
+        }
+        root.write(TAGS_PATH, "");
+        assert_eq!(check_docs(&root.0).unwrap(), Vec::<String>::new());
+    }
+
+    #[test]
+    fn check_docs_passes_a_consistent_chain() {
+        let files = [
+            valid(Superseded, 1, &[]),
+            valid(Superseded, 2, &[1]),
+            valid(Active, 3, &[2]),
+        ];
+        let root = repository("chain", &files, "ADR-0003: graph\n");
+        assert_eq!(check_docs(&root.0).unwrap(), Vec::<String>::new());
+    }
+
+    #[test]
+    fn check_docs_reports_consistency_problems_once_the_structure_is_sound() {
+        let files = [bad_date(), valid(Active, 3, &[9])];
+        let root = repository("consistency", &files, "ADR-0008: graph\n");
+        assert_eq!(
+            sorted(check_docs(&root.0).unwrap()),
+            sorted(vec![
+                message(&bad_date().path(), BadDate { value: "soon".into() }),
+                message(&valid(Active, 3, &[9]).path(), SupersedesMissing { number: 9 }),
+                message(TAGS_PATH, TagsForMissingAdr { number: 8 }),
+            ])
+        );
+    }
+
+    #[test]
+    fn check_docs_reports_no_consistency_problems_alongside_structural_ones() {
+        let files = [bad_date(), no_block(), valid(Active, 3, &[9])];
+        let root = repository("structural", &files, "ADR-0008: Wires\n");
+        assert_eq!(
+            sorted(check_docs(&root.0).unwrap()),
+            sorted(vec![
+                message(&no_block().path(), NoFrontMatter),
+                message(TAGS_PATH, BadTag { number: 8, tag: "Wires".into() }),
+            ])
+        );
+        // A structural problem in `tags.yaml` alone is enough.
+        let files = [bad_date(), valid(Active, 3, &[9])];
+        let root = repository("structural-tags", &files, "ADR-0003: Wires\n");
+        assert_eq!(
+            check_docs(&root.0).unwrap(),
+            [message(
+                TAGS_PATH,
+                BadTag { number: 3, tag: "Wires".into() }
+            )]
+        );
+    }
+
+    #[test]
+    fn adr_list_fails_on_structural_problems() {
+        let list = || Command::List(list::Options::default());
+        let root = repository("list-adr", &[valid(Active, 1, &[]), no_block()], "");
+        assert_eq!(execute(&root.0, list()), Err(vec![message(&no_block().path(), NoFrontMatter)]));
+        let root = repository("list-tags", &[valid(Active, 1, &[])], "ADR-0001: Wires\n");
+        assert_eq!(
+            execute(&root.0, list()),
+            Err(vec![message(
+                TAGS_PATH,
+                BadTag { number: 1, tag: "Wires".into() }
+            )])
+        );
+    }
+
+    #[test]
+    fn adr_list_shows_adrs_with_only_consistency_problems() {
+        let files = [
+            // An empty summary, which `--verbose` leaves out rather than printing a blank line.
+            with_front_matter(
+                Active,
+                "0001-decision-1.md",
+                "id: ADR-0001\ntitle: \"Decision 1\"\nsummary: \"\"\ndate: 2026-11-02\n",
+            ),
+            // A file name with the wrong number.
+            with_front_matter(
+                Active,
+                "0009-wrong-number.md",
+                "id: ADR-0002\ntitle: \"Decision 2\"\nsummary: \"Summary 2.\"\ndate: 2026-11-02\n",
+            ),
+            // An ADR in `superseded/` that nothing supersedes.
+            valid(Superseded, 3, &[]),
+        ];
+        let root = repository("list-consistency", &files, "");
+        assert_eq!(check_docs(&root.0).unwrap().len(), 3);
+        let options = list::Options { all: true, verbose: true, ..list::Options::default() };
+        assert_eq!(
+            execute(&root.0, Command::List(options)),
+            Ok("- ADR-0001: Decision 1\n  \
+                docs/architecture/decisions/active/0001-decision-1.md\n\
+                - ADR-0002: Decision 2\n  \
+                docs/architecture/decisions/active/0009-wrong-number.md\n  \
+                Summary 2.\n\
+                - ADR-0003: Decision 3, superseded\n  \
+                docs/architecture/decisions/superseded/0003-decision-3.md\n  \
+                Summary 3.\n"
+                .to_string())
+        );
+    }
+
+    #[test]
+    fn adr_tags_reads_only_tags_yaml() {
+        // ADR-0002 can't be read and ADR-0009 doesn't exist, and their tags still print.
+        let files = [valid(Active, 1, &[]), no_block()];
+        let tags = "ADR-0001: graph\nADR-0002: wires\nADR-0009: stale\n";
+        let root = repository("tags-only", &files, tags);
+        assert_eq!(execute(&root.0, Command::Tags), Ok("graph\nstale\nwires\n".to_string()));
+    }
+
+    #[test]
+    fn adr_tags_fails_on_structural_problems_in_tags_yaml() {
+        let root = repository("tags-bad", &[valid(Active, 1, &[])], "ADR-0001: Wires\n");
+        assert_eq!(
+            execute(&root.0, Command::Tags),
+            Err(vec![message(
+                TAGS_PATH,
+                BadTag { number: 1, tag: "Wires".into() }
+            )])
+        );
     }
 
     #[test]

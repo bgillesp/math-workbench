@@ -237,7 +237,7 @@ mod tests {
         let options = Options { all: true, ..Options::default() };
         assert_eq!(
             render(&sample(), &options),
-            Ok("- ADR-0001: Wires are dynamically typed (graph/dynamic-typing), superseded by \
+            Ok("- ADR-0001: Wires are dynamically typed (dynamic-typing/graph), superseded by \
                 ADR-0003\n\
                 - ADR-0002: Versioned project files (file-format)\n\
                 - ADR-0003: Wire types: checked on connect (graph/wires)\n"
@@ -315,7 +315,7 @@ mod tests {
         assert_eq!(
             render(&sample(), &parse(&["--all", "--tags=dynamic-typing", "--verbose"]).unwrap()),
             Ok("## dynamic-typing\n\n\
-                - ADR-0001: Wires are dynamically typed (graph/dynamic-typing), superseded by \
+                - ADR-0001: Wires are dynamically typed (dynamic-typing/graph), superseded by \
                 ADR-0003\n  \
                 docs/architecture/decisions/superseded/0001-wires-are-dynamically-typed.md\n  \
                 Wires carry values of any type, checked when a tile reads them.\n"

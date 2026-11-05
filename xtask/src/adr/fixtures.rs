@@ -30,12 +30,9 @@ pub(super) fn valid(dir: Dir, n: u32, supersedes: &[u32]) -> AdrFile {
     with_front_matter(dir, &format!("{n:04}-decision-{n}.md"), &front_matter)
 }
 
-/// `tags.yaml` giving each numbered ADR the tag `graph`.
-pub(super) fn tags_for(numbers: &[u32]) -> String {
-    numbers.iter().fold(String::new(), |mut tags, n| {
-        let _ = writeln!(tags, "ADR-{n:04}: graph");
-        tags
-    })
+/// A well-formed ADR numbered `n`, with the file name `name`.
+pub(super) fn named(dir: Dir, name: &str, n: u32) -> AdrFile {
+    AdrFile { name: name.to_string(), ..valid(dir, n, &[]) }
 }
 
 /// Three ADRs: 0001 superseded by 0003, and 0002 and 0003 in force.

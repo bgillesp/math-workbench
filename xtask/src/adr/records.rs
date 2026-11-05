@@ -5,7 +5,7 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
-use super::check::ProblemKind;
+use super::check::{Problem, ProblemKind};
 use super::{ADR_DIR, AdrFile, Dir, TAGS_PATH, adr_path, parse_id, split_tags, yaml};
 
 /// The front matter fields every ADR must have.
@@ -237,6 +237,12 @@ fn is_date(text: &str) -> bool {
     (1..=days).contains(&day)
 }
 
+/// Reads every ADR in `files` and `tags` (`None` if `tags.yaml` is missing), or finds every
+/// structural problem with them.
+pub(super) fn parse(_files: &[AdrFile], _tags: Option<&str>) -> Result<Records, Vec<Problem>> {
+    todo!("the structural checks")
+}
+
 /// Reads the files in `active/` and `superseded/`, in that order and sorted by name, and the
 /// contents of `tags.yaml`. A missing directory or tags file counts as empty.
 pub(super) fn read_adr_files(root: &Path) -> io::Result<(Vec<AdrFile>, Option<String>)> {
@@ -335,40 +341,315 @@ pub(super) fn load(files: Vec<AdrFile>, tags: Option<&str>) -> Loaded {
 mod tests {
     use super::*;
     use crate::adr::Dir::{Active, Superseded};
-    use crate::adr::fixtures::{SAMPLE_TAGS, TempRoot, file, sample_files, valid};
-    use crate::adr::{ADR_DIR, adr_path};
+    use crate::adr::adr_path;
+    use crate::adr::check::ProblemKind::{
+        BadId, BadSupersedesEntry, BadTag, DuplicateKey, DuplicateTagsEntry, EmptyField,
+        MalformedLine, MissingField, NoFrontMatter, NotQuoted, QuoteOrBackslash, TagsMalformedLine,
+        UnknownKey, UnterminatedQuote,
+    };
+    use crate::adr::fixtures::{
+        SAMPLE_TAGS, TempRoot, file, sample_files, valid, with_front_matter,
+    };
+
+    /// The file name of the ADR that `record` and `kinds` read.
+    const NAME: &str = "0001-decision.md";
+
+    /// Well-formed values for the required fields other than `id`.
+    const FIELDS: &str = "title: \"T\"\nsummary: \"S.\"\ndate: 2026-11-02\n";
+
+    fn problem(path: &str, kind: ProblemKind) -> Problem {
+        Problem { path: path.to_string(), kind }
+    }
+
+    /// Problems in a fixed order, so tests don't depend on the order checks run in.
+    fn sorted(mut problems: Vec<Problem>) -> Vec<Problem> {
+        problems.sort();
+        problems
+    }
+
+    /// The record for one ADR with this front matter, which has to pass the structural checks.
+    fn record(front_matter: &str) -> Adr {
+        let file = with_front_matter(Active, NAME, front_matter);
+        parse(&[file], None).unwrap().adrs.remove(0)
+    }
+
+    /// The kinds of the structural problems in one ADR with this front matter, each of which has
+    /// to name its file.
+    fn kinds(front_matter: &str) -> Vec<ProblemKind> {
+        let file = with_front_matter(Active, NAME, front_matter);
+        let problems = sorted(parse(&[file], None).unwrap_err());
+        assert!(problems.iter().all(|problem| problem.path == adr_path(Active, NAME)));
+        problems.into_iter().map(|problem| problem.kind).collect()
+    }
+
+    /// The kinds of the structural problems in this `tags.yaml`, each of which has to name it.
+    fn tags_kinds(tags: &str) -> Vec<ProblemKind> {
+        let problems = sorted(parse(&[], Some(tags)).unwrap_err());
+        assert!(problems.iter().all(|problem| problem.path == TAGS_PATH));
+        problems.into_iter().map(|problem| problem.kind).collect()
+    }
 
     #[test]
     fn front_matter_reads_every_field() {
+        let name = "0003-wire-types.md";
         let text = "---\nid: ADR-0003\ntitle: \"Wire types: checked on connect\"\n\
                     summary: \"Every wire has a static type.\"\ndate: 2026-11-02\n\
                     supersedes: ADR-0001, ADR-0002\n---\n\n# ADR-0003\n";
         assert_eq!(
-            parse_front_matter(text),
-            Ok(FrontMatter {
+            parse(&[file(Active, name, text)], None).unwrap().adrs,
+            [Adr {
+                dir: Active,
+                name: name.into(),
                 number: 3,
                 title: "Wire types: checked on connect".into(),
                 summary: "Every wire has a static type.".into(),
                 date: "2026-11-02".into(),
                 supersedes: vec![1, 2],
-            })
+                tags: vec![],
+            }]
         );
     }
 
     #[test]
     fn quoted_values_continue_on_indented_lines() {
-        let text = "---\nid: ADR-0003\ntitle: \"Wire types\"\nsummary: \"Every wire has a\n  \
-                    static type,\n    and connecting checks it.\"\ndate: 2026-11-02\n---\n";
-        let front_matter = parse_front_matter(text).unwrap();
-        assert_eq!(front_matter.summary, "Every wire has a static type, and connecting checks it.");
+        let adr = record(
+            "id: ADR-0001\ntitle: \"T\"\nsummary: \"Every wire has a\n  static type,\n    and \
+             connecting checks it.\"\ndate: 2026-11-02\n",
+        );
+        assert_eq!(adr.summary, "Every wire has a static type, and connecting checks it.");
     }
 
     #[test]
-    fn front_matter_without_block_fails() {
-        assert_eq!(parse_front_matter("# ADR-0003\n"), Err(vec![ProblemKind::NoFrontMatter]));
+    fn files_need_a_front_matter_block() {
+        for text in ["# ADR-0001\n", "---\nid: ADR-0001\n"] {
+            assert_eq!(
+                parse(&[file(Active, NAME, text)], None),
+                Err(vec![problem(&adr_path(Active, NAME), NoFrontMatter)]),
+                "{text:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn reader_problems_and_unknown_keys_are_structural() {
         assert_eq!(
-            parse_front_matter("---\nid: ADR-0003\n"),
-            Err(vec![ProblemKind::NoFrontMatter])
+            kinds(&format!("id: ADR-0001\n{FIELDS}not a field\n")),
+            [MalformedLine { line: "not a field".into() }]
+        );
+        assert_eq!(
+            kinds(&format!("id: ADR-0001\n{FIELDS}area: graph\n")),
+            [UnknownKey { key: "area".into() }]
+        );
+        assert_eq!(
+            kinds(&format!("id: ADR-0001\n{FIELDS}summary: \"Again.\"\n")),
+            [DuplicateKey { key: "summary".into() }]
+        );
+    }
+
+    #[test]
+    fn quoting_is_structural() {
+        let front_matter = |title: &str, summary: &str| {
+            format!("id: ADR-0001\ntitle: {title}\nsummary: {summary}\ndate: 2026-11-02\n")
+        };
+        assert_eq!(kinds(&front_matter("Unquoted", "\"S.\"")), [NotQuoted { key: "title".into() }]);
+        assert_eq!(
+            kinds(&front_matter("\"T\"", "Unquoted.")),
+            [NotQuoted { key: "summary".into() }]
+        );
+        assert_eq!(
+            kinds(&front_matter("\"T\"", "\"A \"quoted\" word.\"")),
+            [QuoteOrBackslash { key: "summary".into() }]
+        );
+        assert_eq!(
+            kinds(&front_matter("\"Back\\slash\"", "\"S.\"")),
+            [QuoteOrBackslash { key: "title".into() }]
+        );
+        // One mistake is one problem, so the unreadable value doesn't also count as missing.
+        assert_eq!(
+            kinds(&front_matter("\"T\"", "\"Never closed.")),
+            [UnterminatedQuote { key: "summary".into() }]
+        );
+    }
+
+    #[test]
+    fn missing_fields_are_structural() {
+        let lines = [
+            ("id", "id: ADR-0001\n"),
+            ("title", "title: \"T\"\n"),
+            ("summary", "summary: \"S.\"\n"),
+            ("date", "date: 2026-11-02\n"),
+        ];
+        for (key, _) in lines {
+            let front_matter: String =
+                lines.iter().filter(|(other, _)| *other != key).map(|(_, line)| *line).collect();
+            assert_eq!(kinds(&front_matter), [MissingField { key: key.into() }], "{key}");
+        }
+    }
+
+    #[test]
+    fn ids_have_to_parse() {
+        for id in ["", "1", "0001", "ADR-1", "ADR-NNNN"] {
+            assert_eq!(
+                kinds(&format!("id: {id}\n{FIELDS}")),
+                [BadId { value: id.into() }],
+                "{id:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn supersedes_entries_have_to_be_ids() {
+        assert_eq!(
+            kinds(&format!("id: ADR-0002\n{FIELDS}supersedes: 1\n")),
+            [BadSupersedesEntry { entry: "1".into() }]
+        );
+        assert_eq!(
+            kinds(&format!("id: ADR-0002\n{FIELDS}supersedes: ADR-0001, x\n")),
+            [BadSupersedesEntry { entry: "x".into() }]
+        );
+        // A blank `supersedes` stays a problem until the format allows it, and only a structural
+        // check can see it, since an `Adr` with no successors looks the same.
+        assert_eq!(
+            kinds(&format!("id: ADR-0002\n{FIELDS}supersedes:\n")),
+            [EmptyField { key: "supersedes".into() }]
+        );
+    }
+
+    #[test]
+    fn what_the_consistency_checks_cover_still_parses() {
+        let long = "x".repeat(301);
+        let files = [
+            with_front_matter(
+                Active,
+                "notes.md",
+                "id: ADR-0001\ntitle: \"\"\nsummary: \"\"\ndate: YYYY-MM-DD\nsupersedes: ADR-0009\n",
+            ),
+            with_front_matter(
+                Superseded,
+                "0001-again.md",
+                &format!("id: ADR-0001\ntitle:\nsummary: \"{long}\"\ndate:\n"),
+            ),
+        ];
+        let records = parse(&files, Some("ADR-0008: stale\n")).unwrap();
+        assert_eq!(
+            records.adrs,
+            [
+                Adr {
+                    dir: Active,
+                    name: "notes.md".into(),
+                    number: 1,
+                    title: String::new(),
+                    summary: String::new(),
+                    date: "YYYY-MM-DD".into(),
+                    supersedes: vec![9],
+                    tags: vec![],
+                },
+                Adr {
+                    dir: Superseded,
+                    name: "0001-again.md".into(),
+                    number: 1,
+                    title: String::new(),
+                    summary: long,
+                    date: String::new(),
+                    supersedes: vec![],
+                    tags: vec![],
+                },
+            ]
+        );
+        assert_eq!(records.tags, Tags::from([("stale".to_string(), BTreeSet::from([8]))]));
+    }
+
+    #[test]
+    fn tags_read_as_a_map_from_tag_to_adrs() {
+        assert_eq!(
+            parse(&[], Some(SAMPLE_TAGS)).unwrap().tags,
+            Tags::from([
+                ("dynamic-typing".to_string(), BTreeSet::from([1])),
+                ("file-format".to_string(), BTreeSet::from([2])),
+                ("graph".to_string(), BTreeSet::from([1, 3])),
+                ("wires".to_string(), BTreeSet::from([3])),
+            ])
+        );
+    }
+
+    #[test]
+    fn adrs_come_back_by_number_with_sorted_tags() {
+        let mut files = sample_files();
+        files.push(valid(Active, 5, &[]));
+        let records = parse(&files, Some(SAMPLE_TAGS)).unwrap();
+        let strings =
+            |items: &[&str]| -> Vec<String> { items.iter().map(ToString::to_string).collect() };
+        let numbers_and_tags: Vec<(u32, Vec<String>)> =
+            records.adrs.iter().map(|adr| (adr.number, adr.tags.clone())).collect();
+        assert_eq!(
+            numbers_and_tags,
+            [
+                (1, strings(&["dynamic-typing", "graph"])),
+                (2, strings(&["file-format"])),
+                (3, strings(&["graph", "wires"])),
+                (5, strings(&[])),
+            ]
+        );
+    }
+
+    #[test]
+    fn problems_in_tags_yaml_are_structural() {
+        assert_eq!(tags_kinds("not a line\n"), [TagsMalformedLine { line: "not a line".into() }]);
+        assert_eq!(
+            tags_kinds("graph: ADR-0001\n"),
+            [TagsMalformedLine { line: "graph: ADR-0001".into() }]
+        );
+        assert_eq!(
+            tags_kinds("ADR-0001: \"never closed\n"),
+            [UnterminatedQuote { key: "ADR-0001".into() }]
+        );
+        assert_eq!(
+            tags_kinds("ADR-0001: \"a \"b\" c\"\n"),
+            [QuoteOrBackslash { key: "ADR-0001".into() }]
+        );
+        assert_eq!(
+            tags_kinds("ADR-0001: graph\nADR-0001: wires\n"),
+            [DuplicateTagsEntry { number: 1 }]
+        );
+        assert_eq!(
+            tags_kinds("ADR-0001: graph, Wires, two words\n"),
+            [
+                BadTag { number: 1, tag: "Wires".into() },
+                BadTag { number: 1, tag: "two words".into() },
+            ]
+        );
+    }
+
+    #[test]
+    fn one_run_reports_every_structural_problem() {
+        let files = [
+            file(Active, "0001-no-block.md", "# ADR-0001\n"),
+            with_front_matter(
+                Active,
+                "0002-two-problems.md",
+                "id: 2\ntitle: \"T\"\nsummary: \"S.\"\n",
+            ),
+            valid(Active, 3, &[]),
+            with_front_matter(
+                Superseded,
+                "0004-unknown-key.md",
+                &format!("id: ADR-0004\n{FIELDS}area: graph\n"),
+            ),
+        ];
+        let second = &adr_path(Active, "0002-two-problems.md");
+        assert_eq!(
+            sorted(parse(&files, Some("not a line\nADR-0003: Wires\n")).unwrap_err()),
+            sorted(vec![
+                problem(&adr_path(Active, "0001-no-block.md"), NoFrontMatter),
+                problem(second, BadId { value: "2".into() }),
+                problem(second, MissingField { key: "date".into() }),
+                problem(
+                    &adr_path(Superseded, "0004-unknown-key.md"),
+                    UnknownKey { key: "area".into() }
+                ),
+                problem(TAGS_PATH, TagsMalformedLine { line: "not a line".into() }),
+                problem(TAGS_PATH, BadTag { number: 3, tag: "Wires".into() }),
+            ])
         );
     }
 
@@ -401,35 +682,6 @@ mod tests {
                 ],
                 Some("ADR-0001: graph\n".to_string())
             )
-        );
-    }
-
-    #[test]
-    fn loading_leaves_out_unreadable_adrs_and_keeps_untagged_ones() {
-        let mut files = sample_files();
-        files.push(file(Active, "0004-broken.md", "No front matter.\n"));
-        files.push(valid(Active, 5, &[]));
-        let loaded = load(files, Some(SAMPLE_TAGS));
-        assert_eq!(
-            loaded.warnings,
-            [format!(
-                "{}: front matter can't be read, so it's left out; `cargo xtask check-docs` has \
-                 the details",
-                adr_path(Active, "0004-broken.md")
-            )]
-        );
-        let strings =
-            |items: &[&str]| -> Vec<String> { items.iter().map(ToString::to_string).collect() };
-        let numbers_and_tags: Vec<(u32, Vec<String>)> =
-            loaded.records.adrs.iter().map(|adr| (adr.number, adr.tags.clone())).collect();
-        assert_eq!(
-            numbers_and_tags,
-            [
-                (1, strings(&["graph", "dynamic-typing"])),
-                (2, strings(&["file-format"])),
-                (3, strings(&["graph", "wires"])),
-                (5, strings(&[])),
-            ]
         );
     }
 }
