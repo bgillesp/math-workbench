@@ -281,6 +281,79 @@ mod tests {
     }
 
     #[test]
+    fn tags_ends_with_the_adrs_that_have_no_tags() {
+        let mut files = sample_files();
+        files.push(valid(Active, 5, &[]));
+        let options = Options { grouping: Grouping::AllTags, ..Options::default() };
+        assert_eq!(
+            render(&load(files, Some(SAMPLE_TAGS)).adrs, &options),
+            Ok("## file-format\n\n\
+                - ADR-0002: Versioned project files (file-format)\n\n\
+                ## graph\n\n\
+                - ADR-0003: Wire types: checked on connect (graph/wires)\n\n\
+                ## wires\n\n\
+                - ADR-0003: Wire types: checked on connect (graph/wires)\n\n\
+                ## (no tags)\n\n\
+                - ADR-0005: Decision 5\n"
+                .to_string())
+        );
+    }
+
+    #[test]
+    fn the_no_tags_heading_stands_alone_without_any_tags() {
+        let adrs = load(vec![valid(Active, 1, &[])], None).adrs;
+        let options = Options { grouping: Grouping::AllTags, verbose: true, ..Options::default() };
+        assert_eq!(
+            render(&adrs, &options),
+            Ok("## (no tags)\n\n\
+                - ADR-0001: Decision 1\n  \
+                docs/architecture/decisions/active/0001-decision-1.md\n  \
+                Summary 1.\n"
+                .to_string())
+        );
+    }
+
+    #[test]
+    fn the_no_tags_heading_covers_only_the_adrs_shown() {
+        let files = vec![valid(Superseded, 1, &[]), valid(Active, 2, &[1])];
+        let adrs = load(files, Some("ADR-0002: graph\n")).adrs;
+        let options = Options { grouping: Grouping::AllTags, ..Options::default() };
+        assert_eq!(
+            render(&adrs, &options),
+            Ok("## graph\n\n- ADR-0002: Decision 2 (graph)\n".to_string())
+        );
+        assert_eq!(
+            render(&adrs, &Options { all: true, ..options }),
+            Ok("## graph\n\n\
+                - ADR-0002: Decision 2 (graph)\n\n\
+                ## (no tags)\n\n\
+                - ADR-0001: Decision 1, superseded by ADR-0002\n"
+                .to_string())
+        );
+    }
+
+    #[test]
+    fn named_tags_leave_out_the_no_tags_heading() {
+        let mut files = sample_files();
+        files.push(valid(Active, 5, &[]));
+        assert_eq!(
+            render(&load(files, Some(SAMPLE_TAGS)).adrs, &grouped(&["file-format"])),
+            Ok("## file-format\n\n\
+                - ADR-0002: Versioned project files (file-format)\n"
+                .to_string())
+        );
+    }
+
+    #[test]
+    fn tags_says_none_in_force_with_only_superseded_adrs() {
+        let options = Options { grouping: Grouping::AllTags, ..Options::default() };
+        for tags in [None, Some("ADR-0001: graph\n")] {
+            let adrs = load(vec![valid(Superseded, 1, &[])], tags).adrs;
+            assert_eq!(render(&adrs, &options), Ok("None in force.\n".to_string()), "{tags:?}");
+        }
+    }
+
+    #[test]
     fn tags_groups_by_those_tags_in_order() {
         assert_eq!(
             render(&sample(), &grouped(&["wires", "file-format"])),
