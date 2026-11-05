@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt;
 
 use super::records::{Fields, read_front_matter};
-use super::{AdrFile, Dir, TAGS_PATH, file_number, is_tag, parse_id, split_tags, yaml};
+use super::{AdrFile, Dir, TAGS_PATH, file_number, ids, is_tag, parse_id, split_tags, yaml};
 
 /// A problem in one file.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -156,12 +156,6 @@ impl fmt::Display for ProblemKind {
             ),
         }
     }
-}
-
-/// ADR ids for `numbers`, separated by commas.
-fn ids(numbers: &[u32]) -> String {
-    let ids: Vec<String> = numbers.iter().map(|number| format!("ADR-{number:04}")).collect();
-    ids.join(", ")
 }
 
 /// An ADR file with a well-formed name, and its front matter as far as it could be read.

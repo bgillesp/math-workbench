@@ -1,12 +1,12 @@
 //! Reading ADRs: the files on disk, the front matter schema, and the tags in `tags.yaml`.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::io;
 use std::path::Path;
 
 use super::check::ProblemKind;
-use super::{ADR_DIR, AdrFile, Dir, TAGS_PATH, parse_id, split_tags, yaml};
+use super::{ADR_DIR, AdrFile, Dir, TAGS_PATH, adr_path, parse_id, split_tags, yaml};
 
 /// The front matter fields every ADR must have.
 const REQUIRED_FIELDS: [&str; 4] = ["id", "title", "summary", "date"];
@@ -33,44 +33,69 @@ pub(super) struct FrontMatter {
 }
 
 /// An ADR, as read from its file and `tags.yaml`.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub(super) struct Adr {
-    /// The file the ADR was read from, with its full contents.
-    pub(super) file: AdrFile,
-    /// The ADR's front matter.
-    pub(super) front_matter: FrontMatter,
+    /// The directory it's in, which says whether it's in force.
+    pub(super) dir: Dir,
+    /// The file name, such as `0003-wire-types-checked-on-connect.md`.
+    pub(super) name: String,
+    /// The number in `id`, which identifies the ADR.
+    pub(super) number: u32,
+    /// The value of `title`.
+    pub(super) title: String,
+    /// The value of `summary`, on one line.
+    pub(super) summary: String,
+    /// The value of `date`.
+    pub(super) date: String,
+    /// The numbers in `supersedes`.
+    pub(super) supersedes: Vec<u32>,
     /// The ADR's tags, in the order `tags.yaml` lists them.
     pub(super) tags: Vec<String>,
-    /// The numbers of the ADRs whose `supersedes` lists this one: none for an ADR in force, and
-    /// one for a superseded ADR once `check-docs` passes.
-    pub(super) successors: Vec<u32>,
 }
 
 impl Adr {
-    /// Whether the ADR is in force, which its directory decides.
-    pub(super) fn is_active(&self) -> bool {
-        self.file.dir == Dir::Active
+    /// The repository-relative path of its file.
+    pub(super) fn path(&self) -> String {
+        adr_path(self.dir, &self.name)
     }
 
-    /// How the ADR stands: in force, or superseded by its successors.
-    pub(super) fn status(&self) -> String {
-        if self.is_active() {
-            return "in force".to_string();
-        }
-        if self.successors.is_empty() {
-            return "superseded".to_string();
-        }
-        let ids: Vec<String> =
-            self.successors.iter().map(|number| format!("ADR-{number:04}")).collect();
-        format!("superseded by {}", ids.join(", "))
+    /// Whether it's in force, which its directory decides.
+    pub(super) fn is_active(&self) -> bool {
+        self.dir == Dir::Active
     }
 }
 
-/// The ADRs the views can show, and warnings about files they had to leave out.
+/// Each tag, with the numbers of the ADRs it lists.
+pub(super) type Tags = BTreeMap<String, BTreeSet<u32>>;
+
+/// Every ADR and tag.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub(super) struct Records {
+    /// Every ADR, by number.
+    pub(super) adrs: Vec<Adr>,
+    /// Each tag, with the numbers of the ADRs it lists.
+    pub(super) tags: Tags,
+}
+
+impl Records {
+    /// The numbers of the ADRs whose `supersedes` lists `number`, in order.
+    pub(super) fn successors(&self, number: u32) -> Vec<u32> {
+        let mut successors: Vec<u32> = self
+            .adrs
+            .iter()
+            .filter(|adr| adr.supersedes.contains(&number))
+            .map(|adr| adr.number)
+            .collect();
+        successors.dedup();
+        successors
+    }
+}
+
+/// The records the views can show, and warnings about files they had to leave out.
 #[derive(Debug)]
 pub(super) struct Loaded {
-    /// The ADRs whose front matter could be read, by number.
-    pub(super) adrs: Vec<Adr>,
+    /// The ADRs whose front matter could be read, and their tags.
+    pub(super) records: Records,
     /// A message for each file that was left out.
     pub(super) warnings: Vec<String>,
 }
@@ -290,24 +315,20 @@ pub(super) fn load(files: Vec<AdrFile>, tags: Option<&str>) -> Loaded {
             ));
             continue;
         };
-        let tags = tags_by_number.get(&front_matter.number).cloned().unwrap_or_default();
-        adrs.push(Adr { file, front_matter, tags, successors: Vec::new() });
+        let FrontMatter { number, title, summary, date, supersedes } = front_matter;
+        let tags = tags_by_number.get(&number).cloned().unwrap_or_default();
+        let AdrFile { dir, name, .. } = file;
+        adrs.push(Adr { dir, name, number, title, summary, date, supersedes, tags });
     }
-    adrs.sort_by_key(|adr| adr.front_matter.number);
+    adrs.sort_by_key(|adr| adr.number);
 
-    let mut successors: BTreeMap<u32, Vec<u32>> = BTreeMap::new();
+    let mut tags = Tags::new();
     for adr in &adrs {
-        for &old in &adr.front_matter.supersedes {
-            let list = successors.entry(old).or_default();
-            if !list.contains(&adr.front_matter.number) {
-                list.push(adr.front_matter.number);
-            }
+        for tag in &adr.tags {
+            tags.entry(tag.clone()).or_default().insert(adr.number);
         }
     }
-    for adr in &mut adrs {
-        adr.successors = successors.get(&adr.front_matter.number).cloned().unwrap_or_default();
-    }
-    Loaded { adrs, warnings }
+    Loaded { records: Records { adrs, tags }, warnings }
 }
 
 #[cfg(test)]
@@ -400,7 +421,7 @@ mod tests {
         let strings =
             |items: &[&str]| -> Vec<String> { items.iter().map(ToString::to_string).collect() };
         let numbers_and_tags: Vec<(u32, Vec<String>)> =
-            loaded.adrs.iter().map(|adr| (adr.front_matter.number, adr.tags.clone())).collect();
+            loaded.records.adrs.iter().map(|adr| (adr.number, adr.tags.clone())).collect();
         assert_eq!(
             numbers_and_tags,
             [

@@ -8,17 +8,15 @@
 //!
 //! `yaml` reads the flat subset of YAML that the front matter and `tags.yaml` use, `records`
 //! reads the ADRs and their tags, and `check` holds the ADR checks that `check-docs` runs. `list`
-//! and `tags` each implement one subcommand, with its arguments and output.
+//! implements the subcommands, with their arguments and output.
 
 mod check;
 #[cfg(test)]
 mod fixtures;
 mod list;
 mod records;
-mod tags;
 mod yaml;
 
-use std::error::Error;
 use std::ffi::OsString;
 use std::fmt::Write;
 use std::io;
@@ -110,7 +108,7 @@ const SUBCOMMANDS: [Subcommand; 2] = [
         name: "tags",
         args: "",
         summary: "every tag, one per line",
-        parse: |parser| tags::parse_args(parser).map(|()| Command::Tags),
+        parse: |parser| list::parse_tags_args(parser).map(|()| Command::Tags),
     },
 ];
 
@@ -128,8 +126,10 @@ pub(crate) fn run(root: &Path, parser: lexopt::Parser) -> ExitCode {
             print!("{output}");
             ExitCode::SUCCESS
         },
-        Err(err) => {
-            eprintln!("error: {err}");
+        Err(messages) => {
+            for message in &messages {
+                eprintln!("error: {message}");
+            }
             ExitCode::FAILURE
         },
     }
@@ -141,23 +141,30 @@ pub(crate) fn check_docs(root: &Path) -> io::Result<Vec<String>> {
     Ok(check::check(&files, tags.as_deref()).iter().map(ToString::to_string).collect())
 }
 
-/// Runs `command` against the repository at `root`, and returns what it prints.
-fn execute(root: &Path, command: Command) -> Result<String, Box<dyn Error>> {
+/// Runs `command` against the repository at `root`, and returns what it prints, or a message for
+/// each thing that went wrong.
+fn execute(root: &Path, command: Command) -> Result<String, Vec<String>> {
     Ok(match command {
-        Command::List(options) => list::render(&load(root)?, &options)?,
-        Command::Tags => tags::render(&load(root)?),
+        Command::List(options) => {
+            let records = load(root).map_err(|err| vec![err.to_string()])?;
+            list::render(&records, &options).map_err(|message| vec![message])?
+        },
+        Command::Tags => {
+            let records = load(root).map_err(|err| vec![err.to_string()])?;
+            list::render_tags(&records.tags)
+        },
         Command::Help => format!("{}\n", usage()),
     })
 }
 
-/// The ADRs for the views, after printing a warning for each file they leave out.
-fn load(root: &Path) -> io::Result<Vec<records::Adr>> {
+/// The ADRs and tags for the views, after printing a warning for each file they leave out.
+fn load(root: &Path) -> io::Result<records::Records> {
     let (files, tags) = records::read_adr_files(root)?;
     let loaded = records::load(files, tags.as_deref());
     for warning in &loaded.warnings {
         eprintln!("warning: {warning}");
     }
-    Ok(loaded.adrs)
+    Ok(loaded.records)
 }
 
 /// Parses the arguments after `adr`: a subcommand, then that subcommand's own arguments.
@@ -207,6 +214,12 @@ fn list_arg(option: &str, value: OsString, noun: &str) -> Result<Vec<String>, le
         return Err(format!("`--{option}=` needs at least one {noun}").into());
     }
     Ok(items)
+}
+
+/// ADR ids for `numbers`, separated by commas.
+fn ids(numbers: &[u32]) -> String {
+    let ids: Vec<String> = numbers.iter().map(|number| format!("ADR-{number:04}")).collect();
+    ids.join(", ")
 }
 
 /// The number in an ADR id like `ADR-0003`.
