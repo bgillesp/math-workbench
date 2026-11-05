@@ -5,7 +5,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use super::Dir::{Active, Superseded};
-use super::records::{Records, load};
+use super::records::{Records, parse};
 use super::{AdrFile, Dir};
 
 /// An ADR file in `dir` with the given name and contents.
@@ -66,15 +66,13 @@ pub(super) const SAMPLE_TAGS: &str =
     "ADR-0001: graph, dynamic-typing\nADR-0002: file-format\nADR-0003: graph, wires\n";
 
 /// The records for `files` and `tags`, which have to load in full.
-pub(super) fn records_from(files: Vec<AdrFile>, tags: Option<&str>) -> Records {
-    let loaded = load(files, tags);
-    assert_eq!(loaded.warnings, Vec::<String>::new());
-    loaded.records
+pub(super) fn records_from(files: &[AdrFile], tags: Option<&str>) -> Records {
+    parse(files, tags).unwrap()
 }
 
 /// The sample ADRs, loaded for the views.
 pub(super) fn sample() -> Records {
-    records_from(sample_files(), Some(SAMPLE_TAGS))
+    records_from(&sample_files(), Some(SAMPLE_TAGS))
 }
 
 /// A scratch repository under the system temp directory, removed when dropped.

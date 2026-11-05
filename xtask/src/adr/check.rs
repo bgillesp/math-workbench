@@ -1,11 +1,14 @@
-//! The ADR checks that `check-docs` runs: the front matter schema, the supersede links between
-//! ADRs, and `tags.yaml`.
+//! What can be wrong with ADRs, and the consistency checks that `check-docs` runs over the records
+//! that pass the structural checks: the fields, the file names, and the links between ADRs.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 use std::fmt;
 
-use super::records::{Fields, Records, read_front_matter};
-use super::{AdrFile, Dir, TAGS_PATH, file_number, ids, is_tag, parse_id, split_tags, yaml};
+use super::records::Records;
+use super::{Dir, TAGS_PATH, file_number, ids};
+
+/// The longest a summary can be, in characters.
+const SUMMARY_LIMIT: usize = 300;
 
 /// A problem in one file.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -26,8 +29,6 @@ impl fmt::Display for Problem {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum ProblemKind {
     // An ADR on its own
-    /// The file name isn't like `0003-short-title.md`.
-    BadName,
     /// The file name isn't like `0003-short-title.md`, with the `number` in `id`.
     NameMismatch { number: u32 },
     /// The file doesn't start with a front matter block.
@@ -52,8 +53,6 @@ pub(super) enum ProblemKind {
     SummaryTooLong { chars: usize },
     /// `id` isn't like `ADR-0003`.
     BadId { value: String },
-    /// `id` names a different number than the file name.
-    IdMismatch { id: u32 },
     /// Another ADR, at path `other`, has the same number.
     DuplicateId { number: u32, other: String },
     /// `date` isn't a `YYYY-MM-DD` date.
@@ -87,7 +86,6 @@ pub(super) enum ProblemKind {
 impl fmt::Display for ProblemKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::BadName => write!(f, "ADR file names look like `0003-short-title.md`"),
             Self::NameMismatch { number } => write!(
                 f,
                 "`id` is ADR-{number:04}, so the file name should look like \
@@ -121,9 +119,6 @@ impl fmt::Display for ProblemKind {
                 write!(f, "`summary` is {chars} characters, over the limit of 300")
             },
             Self::BadId { value } => write!(f, "`id` is `{value}`, not an id like `ADR-0003`"),
-            Self::IdMismatch { id } => {
-                write!(f, "`id` is ADR-{id:04}, which doesn't match the number in the file name")
-            },
             Self::DuplicateId { number, other } => write!(f, "{other} is also ADR-{number:04}"),
             Self::BadDate { value } => {
                 write!(f, "`date` is `{value}`, not a date like `2026-11-02`")
@@ -165,82 +160,89 @@ impl fmt::Display for ProblemKind {
     }
 }
 
-/// An ADR file with a well-formed name, and its front matter as far as it could be read.
-struct Checked<'a> {
-    /// The file.
-    file: &'a AdrFile,
-    /// The file's repository-relative path.
-    path: String,
-    /// The number in the file name, which identifies the ADR in the other checks.
-    number: u32,
-    /// The front matter fields that could be read.
-    fields: Fields,
-}
-
 /// Runs the consistency checks.
-pub(super) fn check(_records: &Records) -> Vec<Problem> {
-    todo!("the consistency checks")
-}
-
-/// Checks the ADRs and `tags.yaml` (`None` if it's missing).
-pub(super) fn check_files(files: &[AdrFile], tags: Option<&str>) -> Vec<Problem> {
+pub(super) fn check(records: &Records) -> Vec<Problem> {
     let mut problems = Vec::new();
-    let mut adrs = Vec::new();
     let mut paths: HashMap<u32, String> = HashMap::new();
-    for file in files {
-        let path = file.path();
-        let Some(number) = file_number(&file.name) else {
-            problems.push(Problem { path, kind: ProblemKind::BadName });
-            continue;
-        };
-        let (fields, kinds) = read_front_matter(&file.text);
+    for adr in &records.adrs {
+        let path = adr.path();
         let mut problem = |kind| problems.push(Problem { path: path.clone(), kind });
-        kinds.into_iter().for_each(&mut problem);
-        if let Some(id) = fields.number
-            && id != number
-        {
-            problem(ProblemKind::IdMismatch { id });
+        if file_number(&adr.name) != Some(adr.number) {
+            problem(ProblemKind::NameMismatch { number: adr.number });
         }
-        match paths.get(&number) {
-            Some(other) => problem(ProblemKind::DuplicateId { number, other: other.clone() }),
+        for (key, value) in [("title", &adr.title), ("summary", &adr.summary)] {
+            if value.is_empty() {
+                problem(ProblemKind::EmptyField { key: key.to_string() });
+            }
+        }
+        let chars = adr.summary.chars().count();
+        if chars > SUMMARY_LIMIT {
+            problem(ProblemKind::SummaryTooLong { chars });
+        }
+        if !is_date(&adr.date) {
+            problem(ProblemKind::BadDate { value: adr.date.clone() });
+        }
+        match paths.get(&adr.number) {
+            Some(other) => {
+                problem(ProblemKind::DuplicateId { number: adr.number, other: other.clone() });
+            },
             None => {
-                paths.insert(number, path.clone());
+                paths.insert(adr.number, path.clone());
             },
         }
-        adrs.push(Checked { file, path, number, fields });
     }
-    problems.extend(check_supersedes(&adrs));
-    problems.extend(check_tags(&adrs, tags.unwrap_or_default()));
+    problems.extend(check_supersedes(records));
+    problems.extend(check_tags(records));
     problems
+}
+
+/// Whether `text` is a real date written as `YYYY-MM-DD`.
+fn is_date(text: &str) -> bool {
+    let well_formed = text.len() == 10
+        && text.bytes().enumerate().all(|(i, byte)| match i {
+            4 | 7 => byte == b'-',
+            _ => byte.is_ascii_digit(),
+        });
+    if !well_formed {
+        return false;
+    }
+    let number = |range: std::ops::Range<usize>| text[range].parse::<u32>().unwrap_or_default();
+    let (year, month, day) = (number(0..4), number(5..7), number(8..10));
+    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let days = match month {
+        2 if leap => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        1..=12 => 31,
+        _ => return false,
+    };
+    (1..=days).contains(&day)
 }
 
 /// Checks that each `supersedes` entry names an existing ADR with a lower number, that each ADR
 /// has at most one successor, and that an ADR is in `superseded/` exactly when it has one.
-fn check_supersedes(adrs: &[Checked<'_>]) -> Vec<Problem> {
+fn check_supersedes(records: &Records) -> Vec<Problem> {
     let mut problems = Vec::new();
-    let numbers: HashSet<u32> = adrs.iter().map(|adr| adr.number).collect();
-    let mut successors: BTreeMap<u32, BTreeSet<u32>> = BTreeMap::new();
-    for adr in adrs {
-        for &old in &adr.fields.supersedes {
-            let kind = if numbers.contains(&old) {
-                successors.entry(old).or_default().insert(adr.number);
-                if old < adr.number {
-                    continue;
-                }
+    let numbers: BTreeSet<u32> = records.adrs.iter().map(|adr| adr.number).collect();
+    for adr in &records.adrs {
+        for &old in &adr.supersedes {
+            let kind = if !numbers.contains(&old) {
+                ProblemKind::SupersedesMissing { number: old }
+            } else if old >= adr.number {
                 ProblemKind::SupersedesNotLower { number: old }
             } else {
-                ProblemKind::SupersedesMissing { number: old }
+                continue;
             };
-            problems.push(Problem { path: adr.path.clone(), kind });
+            problems.push(Problem { path: adr.path(), kind });
         }
     }
-    for adr in adrs {
-        let by: Vec<u32> = successors.get(&adr.number).into_iter().flatten().copied().collect();
-        let mut problem = |kind| problems.push(Problem { path: adr.path.clone(), kind });
+    for adr in &records.adrs {
+        let by = records.successors(adr.number);
+        let mut problem = |kind| problems.push(Problem { path: adr.path(), kind });
         if by.len() > 1 {
             problem(ProblemKind::SupersededByMany { by: by.clone() });
         }
-        match (adr.file.dir, by.first()) {
+        match (adr.dir, by.first()) {
             (Dir::Superseded, None) => problem(ProblemKind::SupersededButNotListed),
             (Dir::Active, Some(&by)) => problem(ProblemKind::ActiveButSuperseded { by }),
             _ => {},
@@ -249,47 +251,17 @@ fn check_supersedes(adrs: &[Checked<'_>]) -> Vec<Problem> {
     problems
 }
 
-/// Checks that `tags.yaml` has at most one entry for each ADR, and none for an ADR that doesn't
-/// exist, and that each tag is well formed. An ADR doesn't need an entry, or tags in its entry.
-fn check_tags(adrs: &[Checked<'_>], tags: &str) -> Vec<Problem> {
-    let mut kinds = Vec::new();
-    // The ADRs with an entry, including entries whose quoted value couldn't be read.
-    let mut entered = BTreeSet::new();
-    let (entries, errors) = yaml::read(tags);
-    for error in errors {
-        kinds.push(match error {
-            yaml::Error::MalformedLine { line } => ProblemKind::TagsMalformedLine { line },
-            yaml::Error::UnterminatedQuote { key } => {
-                entered.extend(parse_id(&key));
-                ProblemKind::UnterminatedQuote { key }
-            },
-            yaml::Error::QuoteOrBackslash { key } => {
-                entered.extend(parse_id(&key));
-                ProblemKind::QuoteOrBackslash { key }
-            },
-        });
-    }
-    let numbers: BTreeSet<u32> = adrs.iter().map(|adr| adr.number).collect();
-    for entry in &entries {
-        let Some(number) = parse_id(&entry.key) else {
-            let line = match &entry.value {
-                yaml::Value::Plain(value) => format!("{}: {value}", entry.key),
-                yaml::Value::Quoted(value) => format!("{}: \"{value}\"", entry.key),
-            };
-            kinds.push(ProblemKind::TagsMalformedLine { line });
-            continue;
-        };
-        if !entered.insert(number) {
-            kinds.push(ProblemKind::DuplicateTagsEntry { number });
-        } else if !numbers.contains(&number) {
-            kinds.push(ProblemKind::TagsForMissingAdr { number });
-        } else if !entry.value.text().is_empty() {
-            for tag in split_tags(entry.value.text()).filter(|tag| !is_tag(tag)) {
-                kinds.push(ProblemKind::BadTag { number, tag: tag.to_string() });
-            }
-        }
-    }
-    kinds.into_iter().map(|kind| Problem { path: TAGS_PATH.to_string(), kind }).collect()
+/// Checks that each ADR that a tag lists exists.
+fn check_tags(records: &Records) -> Vec<Problem> {
+    let numbers: BTreeSet<u32> = records.adrs.iter().map(|adr| adr.number).collect();
+    let listed: BTreeSet<u32> = records.tags.values().flatten().copied().collect();
+    listed
+        .difference(&numbers)
+        .map(|&number| Problem {
+            path: TAGS_PATH.to_string(),
+            kind: ProblemKind::TagsForMissingAdr { number },
+        })
+        .collect()
 }
 
 #[cfg(test)]

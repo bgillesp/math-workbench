@@ -6,9 +6,11 @@
 //! designs are in `docs/design/0010-adr-directories.md` and
 //! `docs/design/0019-simplify-adr-commands.md`.
 //!
-//! `yaml` reads the flat subset of YAML that the front matter and `tags.yaml` use, `records`
-//! reads the ADRs and their tags, and `check` holds the ADR checks that `check-docs` runs. `list`
-//! implements the subcommands, with their arguments and output.
+//! Loading has two stages. `records` reads the ADRs and `tags.yaml` into `Records` through the
+//! structural checks, returning every record or every structural problem, using `yaml` for the
+//! flat subset of YAML they share. `check` then runs the consistency checks over those records,
+//! for `check-docs`. `list` implements the subcommands, with their arguments and output, and
+//! needs only the first stage.
 
 mod check;
 #[cfg(test)]
@@ -137,8 +139,16 @@ pub(crate) fn run(root: &Path, parser: lexopt::Parser) -> ExitCode {
 
 /// The ADR checks that `check-docs` runs, as messages.
 pub(crate) fn check_docs(root: &Path) -> io::Result<Vec<String>> {
-    let (files, tags) = records::read_adr_files(root)?;
-    Ok(check::check_files(&files, tags.as_deref()).iter().map(ToString::to_string).collect())
+    let problems = match records::load(root)? {
+        Ok(records) => check::check(&records),
+        Err(problems) => problems,
+    };
+    Ok(messages(&problems))
+}
+
+/// The message for each of `problems`.
+fn messages(problems: &[check::Problem]) -> Vec<String> {
+    problems.iter().map(ToString::to_string).collect()
 }
 
 /// Runs `command` against the repository at `root`, and returns what it prints, or a message for
@@ -146,25 +156,19 @@ pub(crate) fn check_docs(root: &Path) -> io::Result<Vec<String>> {
 fn execute(root: &Path, command: Command) -> Result<String, Vec<String>> {
     Ok(match command {
         Command::List(options) => {
-            let records = load(root).map_err(|err| vec![err.to_string()])?;
+            let records = records::load(root)
+                .map_err(|err| vec![err.to_string()])?
+                .map_err(|problems| messages(&problems))?;
             list::render(&records, &options).map_err(|message| vec![message])?
         },
         Command::Tags => {
-            let records = load(root).map_err(|err| vec![err.to_string()])?;
-            list::render_tags(&records.tags)
+            let tags = records::load_tags(root)
+                .map_err(|err| vec![err.to_string()])?
+                .map_err(|problems| messages(&problems))?;
+            list::render_tags(&tags)
         },
         Command::Help => format!("{}\n", usage()),
     })
-}
-
-/// The ADRs and tags for the views, after printing a warning for each file they leave out.
-fn load(root: &Path) -> io::Result<records::Records> {
-    let (files, tags) = records::read_adr_files(root)?;
-    let loaded = records::load(files, tags.as_deref());
-    for warning in &loaded.warnings {
-        eprintln!("warning: {warning}");
-    }
-    Ok(loaded.records)
 }
 
 /// Parses the arguments after `adr`: a subcommand, then that subcommand's own arguments.

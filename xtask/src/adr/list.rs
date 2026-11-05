@@ -150,8 +150,10 @@ fn entry(adr: &Adr, successors: &[u32], verbose: bool) -> String {
     entry.push('\n');
     if verbose {
         entry = format!("{entry}  {}\n", adr.path());
-        entry.push_str(&wrap(&adr.summary, SUMMARY_WIDTH, "  "));
-        entry.push('\n');
+        if !adr.summary.is_empty() {
+            entry.push_str(&wrap(&adr.summary, SUMMARY_WIDTH, "  "));
+            entry.push('\n');
+        }
     }
     entry
 }
@@ -198,7 +200,7 @@ mod tests {
     fn with_untagged() -> Records {
         let mut files = sample_files();
         files.push(valid(Active, 5, &[]));
-        records_from(files, Some(SAMPLE_TAGS))
+        records_from(&files, Some(SAMPLE_TAGS))
     }
 
     #[test]
@@ -294,7 +296,7 @@ mod tests {
     #[test]
     fn options_combine() {
         let files = vec![valid(Superseded, 1, &[]), valid(Active, 2, &[1])];
-        let records = records_from(files, Some("ADR-0002: graph\n"));
+        let records = records_from(&files, Some("ADR-0002: graph\n"));
         assert_eq!(
             render(&records, &parse(&["--all", "--tags", "--verbose"]).unwrap()),
             Ok("## graph\n\n\
@@ -334,7 +336,7 @@ mod tests {
     #[test]
     fn says_none_when_nothing_is_shown() {
         let none_in_force = Ok("None in force.\n".to_string());
-        let superseded = records_from(vec![valid(Superseded, 1, &[])], Some("ADR-0001: graph\n"));
+        let superseded = records_from(&[valid(Superseded, 1, &[])], Some("ADR-0001: graph\n"));
         let by_tag = Options { grouping: Grouping::AllTags, ..Options::default() };
         assert_eq!(render(&Records::default(), &Options::default()), Ok("None yet.\n".to_string()));
         assert_eq!(render(&superseded, &Options::default()), none_in_force);

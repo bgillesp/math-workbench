@@ -1,12 +1,12 @@
-//! Reading ADRs: the files on disk, the front matter schema, and the tags in `tags.yaml`.
+//! Loading ADRs: the files on disk, the structural checks, and the tags in `tags.yaml`.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fs;
 use std::io;
 use std::path::Path;
 
 use super::check::{Problem, ProblemKind};
-use super::{ADR_DIR, AdrFile, Dir, TAGS_PATH, adr_path, parse_id, split_tags, yaml};
+use super::{ADR_DIR, AdrFile, Dir, TAGS_PATH, adr_path, is_tag, parse_id, split_tags, yaml};
 
 /// The front matter fields every ADR must have.
 const REQUIRED_FIELDS: [&str; 4] = ["id", "title", "summary", "date"];
@@ -14,42 +14,25 @@ const REQUIRED_FIELDS: [&str; 4] = ["id", "title", "summary", "date"];
 /// The front matter fields an ADR may leave out.
 const OPTIONAL_FIELDS: [&str; 1] = ["supersedes"];
 
-/// The longest a summary can be, in characters.
-const SUMMARY_LIMIT: usize = 300;
-
-/// An ADR's front matter, once it has been read.
-#[derive(Debug, PartialEq, Eq)]
-pub(super) struct FrontMatter {
-    /// The number in `id`.
-    pub(super) number: u32,
-    /// The title, unquoted.
-    pub(super) title: String,
-    /// The summary, unquoted, with continuation lines folded into single spaces.
-    pub(super) summary: String,
-    /// The date the ADR was created, as `YYYY-MM-DD`.
-    pub(super) date: String,
-    /// The numbers of the ADRs this one replaces.
-    pub(super) supersedes: Vec<u32>,
-}
-
-/// An ADR, as read from its file and `tags.yaml`.
+/// An ADR whose file passed the structural checks.
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct Adr {
     /// The directory it's in, which says whether it's in force.
     pub(super) dir: Dir,
-    /// The file name, such as `0003-wire-types-checked-on-connect.md`.
+    /// The file name, such as `0003-wire-types-checked-on-connect.md`, which the consistency
+    /// checks compare with `number`.
     pub(super) name: String,
     /// The number in `id`, which identifies the ADR.
     pub(super) number: u32,
-    /// The value of `title`.
+    /// The value of `title`, which may be empty.
     pub(super) title: String,
-    /// The value of `summary`, on one line.
+    /// The value of `summary`, on one line, which may be empty.
     pub(super) summary: String,
-    /// The value of `date`.
+    /// The value of `date`, which the consistency checks require to be a real date.
     pub(super) date: String,
     /// The numbers in `supersedes`.
     pub(super) supersedes: Vec<u32>,
-    /// The ADR's tags, in the order `tags.yaml` lists them.
+    /// The tags in `tags.yaml` that list this ADR, sorted.
     pub(super) tags: Vec<String>,
 }
 
@@ -65,15 +48,15 @@ impl Adr {
     }
 }
 
-/// Each tag, with the numbers of the ADRs it lists.
+/// Each tag in `tags.yaml`, with the numbers of the ADRs it lists.
 pub(super) type Tags = BTreeMap<String, BTreeSet<u32>>;
 
-/// Every ADR and tag.
+/// Every ADR and tag, once they've all passed the structural checks.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(super) struct Records {
     /// Every ADR, by number.
     pub(super) adrs: Vec<Adr>,
-    /// Each tag, with the numbers of the ADRs it lists.
+    /// Each tag in `tags.yaml`, with the numbers of the ADRs it lists.
     pub(super) tags: Tags,
 }
 
@@ -91,47 +74,58 @@ impl Records {
     }
 }
 
-/// The records the views can show, and warnings about files they had to leave out.
-#[derive(Debug)]
-pub(super) struct Loaded {
-    /// The ADRs whose front matter could be read, and their tags.
-    pub(super) records: Records,
-    /// A message for each file that was left out.
-    pub(super) warnings: Vec<String>,
+/// Reads every ADR and `tags.yaml`, or finds every structural problem with them.
+pub(super) fn load(root: &Path) -> io::Result<Result<Records, Vec<Problem>>> {
+    let (files, tags) = read_adr_files(root)?;
+    Ok(parse(&files, tags.as_deref()))
 }
 
-/// The front matter fields that could be read, whether or not the rest could.
-#[derive(Debug, Default)]
-pub(super) struct Fields {
-    /// The number in `id`.
-    pub(super) number: Option<u32>,
-    /// The title, unquoted.
-    pub(super) title: Option<String>,
-    /// The summary, unquoted.
-    pub(super) summary: Option<String>,
-    /// The date, as `YYYY-MM-DD`.
-    pub(super) date: Option<String>,
-    /// The numbers of the well-formed `supersedes` entries.
-    pub(super) supersedes: Vec<u32>,
+/// Reads just `tags.yaml`, or finds every structural problem with it.
+pub(super) fn load_tags(root: &Path) -> io::Result<Result<Tags, Vec<Problem>>> {
+    let tags = read_optional(root, TAGS_PATH)?;
+    Ok(parse_tags(tags.as_deref().unwrap_or_default()).map_err(tags_problems))
 }
 
-/// Reads an ADR's front matter, or every problem that keeps it from being read.
-pub(super) fn parse_front_matter(text: &str) -> Result<FrontMatter, Vec<ProblemKind>> {
-    let (fields, problems) = read_front_matter(text);
-    if problems.is_empty()
-        && let (Some(number), Some(title), Some(summary), Some(date)) =
-            (fields.number, fields.title, fields.summary, fields.date)
-    {
-        return Ok(FrontMatter { number, title, summary, date, supersedes: fields.supersedes });
+/// Reads every ADR in `files` and `tags` (`None` if `tags.yaml` is missing), or finds every
+/// structural problem with them.
+pub(super) fn parse(files: &[AdrFile], tags: Option<&str>) -> Result<Records, Vec<Problem>> {
+    let mut adrs = Vec::new();
+    let mut problems = Vec::new();
+    for file in files {
+        match parse_adr(file) {
+            Ok(adr) => adrs.push(adr),
+            Err(kinds) => {
+                problems.extend(kinds.into_iter().map(|kind| Problem { path: file.path(), kind }));
+            },
+        }
     }
-    Err(problems)
+    let tags = parse_tags(tags.unwrap_or_default()).unwrap_or_else(|kinds| {
+        problems.extend(tags_problems(kinds));
+        Tags::new()
+    });
+    if !problems.is_empty() {
+        return Err(problems);
+    }
+    for adr in &mut adrs {
+        adr.tags = tags
+            .iter()
+            .filter(|(_, numbers)| numbers.contains(&adr.number))
+            .map(|(tag, _)| tag.clone())
+            .collect();
+    }
+    adrs.sort_by_key(|adr| adr.number);
+    Ok(Records { adrs, tags })
 }
 
-/// Reads as much of an ADR's front matter as it can, and every problem with it.
-pub(super) fn read_front_matter(text: &str) -> (Fields, Vec<ProblemKind>) {
-    let mut fields = Fields::default();
-    let Some(block) = front_matter_block(text) else {
-        return (fields, vec![ProblemKind::NoFrontMatter]);
+/// `kinds` as problems with `tags.yaml`.
+fn tags_problems(kinds: Vec<ProblemKind>) -> Vec<Problem> {
+    kinds.into_iter().map(|kind| Problem { path: TAGS_PATH.to_string(), kind }).collect()
+}
+
+/// Reads an ADR's front matter, or every structural problem with it.
+fn parse_adr(file: &AdrFile) -> Result<Adr, Vec<ProblemKind>> {
+    let Some(block) = front_matter_block(&file.text) else {
+        return Err(vec![ProblemKind::NoFrontMatter]);
     };
     let (entries, errors) = yaml::read(block);
     let mut problems = Vec::new();
@@ -150,6 +144,11 @@ pub(super) fn read_front_matter(text: &str) -> (Fields, Vec<ProblemKind>) {
             },
         });
     }
+    let mut number = None;
+    let mut title = None;
+    let mut summary = None;
+    let mut date = None;
+    let mut supersedes = Vec::new();
     for yaml::Entry { key, value } in entries {
         let name = key.as_str();
         if !REQUIRED_FIELDS.contains(&name) && !OPTIONAL_FIELDS.contains(&name) {
@@ -161,31 +160,22 @@ pub(super) fn read_front_matter(text: &str) -> (Fields, Vec<ProblemKind>) {
             continue;
         }
         let text = value.text();
-        if text.is_empty() {
-            problems.push(ProblemKind::EmptyField { key });
-            continue;
-        }
         match key.as_str() {
             "id" => match parse_id(text) {
-                Some(number) => fields.number = Some(number),
+                Some(parsed) => number = Some(parsed),
                 None => problems.push(ProblemKind::BadId { value: text.to_string() }),
             },
-            "title" | "summary" if matches!(value, yaml::Value::Plain(_)) => {
+            "title" | "summary" if !text.is_empty() && matches!(value, yaml::Value::Plain(_)) => {
                 problems.push(ProblemKind::NotQuoted { key });
             },
-            "title" => fields.title = Some(text.to_string()),
-            "summary" => match text.chars().count() {
-                chars if chars > SUMMARY_LIMIT => {
-                    problems.push(ProblemKind::SummaryTooLong { chars });
-                },
-                _ => fields.summary = Some(text.to_string()),
-            },
-            "date" if is_date(text) => fields.date = Some(text.to_string()),
-            "date" => problems.push(ProblemKind::BadDate { value: text.to_string() }),
+            "title" => title = Some(text.to_string()),
+            "summary" => summary = Some(text.to_string()),
+            "date" => date = Some(text.to_string()),
+            _ if text.is_empty() => problems.push(ProblemKind::EmptyField { key }),
             _ => {
                 for entry in text.split(',').map(str::trim) {
                     match parse_id(entry) {
-                        Some(number) => fields.supersedes.push(number),
+                        Some(parsed) => supersedes.push(parsed),
                         None => problems
                             .push(ProblemKind::BadSupersedesEntry { entry: entry.to_string() }),
                     }
@@ -198,7 +188,59 @@ pub(super) fn read_front_matter(text: &str) -> (Fields, Vec<ProblemKind>) {
             problems.push(ProblemKind::MissingField { key: key.to_string() });
         }
     }
-    (fields, problems)
+    if problems.is_empty()
+        && let (Some(number), Some(title), Some(summary), Some(date)) =
+            (number, title, summary, date)
+    {
+        return Ok(Adr {
+            dir: file.dir,
+            name: file.name.clone(),
+            number,
+            title,
+            summary,
+            date,
+            supersedes,
+            tags: Vec::new(),
+        });
+    }
+    Err(problems)
+}
+
+/// Reads `tags.yaml` into a map from tag to ADR numbers, or every structural problem with it.
+fn parse_tags(text: &str) -> Result<Tags, Vec<ProblemKind>> {
+    let (entries, errors) = yaml::read(text);
+    let mut problems: Vec<ProblemKind> = errors
+        .into_iter()
+        .map(|error| match error {
+            yaml::Error::MalformedLine { line } => ProblemKind::TagsMalformedLine { line },
+            yaml::Error::UnterminatedQuote { key } => ProblemKind::UnterminatedQuote { key },
+            yaml::Error::QuoteOrBackslash { key } => ProblemKind::QuoteOrBackslash { key },
+        })
+        .collect();
+    let mut tags = Tags::new();
+    let mut entered = BTreeSet::new();
+    for entry in &entries {
+        let Some(number) = parse_id(&entry.key) else {
+            let line = match &entry.value {
+                yaml::Value::Plain(value) => format!("{}: {value}", entry.key),
+                yaml::Value::Quoted(value) => format!("{}: \"{value}\"", entry.key),
+            };
+            problems.push(ProblemKind::TagsMalformedLine { line });
+            continue;
+        };
+        if !entered.insert(number) {
+            problems.push(ProblemKind::DuplicateTagsEntry { number });
+        } else if !entry.value.text().is_empty() {
+            for tag in split_tags(entry.value.text()) {
+                if is_tag(tag) {
+                    tags.entry(tag.to_string()).or_default().insert(number);
+                } else {
+                    problems.push(ProblemKind::BadTag { number, tag: tag.to_string() });
+                }
+            }
+        }
+    }
+    if problems.is_empty() { Ok(tags) } else { Err(problems) }
 }
 
 /// The text between the `---` line that opens `text` and the next `---` line.
@@ -212,35 +254,6 @@ fn front_matter_block(text: &str) -> Option<&str> {
         end += line.len();
     }
     None
-}
-
-/// Whether `text` is a real date written as `YYYY-MM-DD`.
-fn is_date(text: &str) -> bool {
-    let well_formed = text.len() == 10
-        && text.bytes().enumerate().all(|(i, byte)| match i {
-            4 | 7 => byte == b'-',
-            _ => byte.is_ascii_digit(),
-        });
-    if !well_formed {
-        return false;
-    }
-    let number = |range: std::ops::Range<usize>| text[range].parse::<u32>().unwrap_or_default();
-    let (year, month, day) = (number(0..4), number(5..7), number(8..10));
-    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-    let days = match month {
-        2 if leap => 29,
-        2 => 28,
-        4 | 6 | 9 | 11 => 30,
-        1..=12 => 31,
-        _ => return false,
-    };
-    (1..=days).contains(&day)
-}
-
-/// Reads every ADR in `files` and `tags` (`None` if `tags.yaml` is missing), or finds every
-/// structural problem with them.
-pub(super) fn parse(_files: &[AdrFile], _tags: Option<&str>) -> Result<Records, Vec<Problem>> {
-    todo!("the structural checks")
 }
 
 /// Reads the files in `active/` and `superseded/`, in that order and sorted by name, and the
@@ -282,59 +295,6 @@ fn read_optional(root: &Path, path: &str) -> io::Result<Option<String>> {
 /// `err`, with the repository-relative path it happened at in its message.
 fn at(path: &str, err: &io::Error) -> io::Error {
     io::Error::new(err.kind(), format!("{path}: {err}"))
-}
-
-/// The entries in `tags` whose key is an ADR id, in order, with their tags. The rest is left to
-/// `check-docs`.
-fn tag_entries(tags: Option<&str>) -> Vec<(u32, Vec<String>)> {
-    let (entries, _) = yaml::read(tags.unwrap_or_default());
-    entries
-        .iter()
-        .filter_map(|entry| {
-            let number = parse_id(&entry.key)?;
-            let mut tags: Vec<String> = Vec::new();
-            for tag in split_tags(entry.value.text()) {
-                if !tag.is_empty() && !tags.iter().any(|known| known == tag) {
-                    tags.push(tag.to_string());
-                }
-            }
-            Some((number, tags))
-        })
-        .collect()
-}
-
-/// Reads the ADRs for the views, leaving out any whose front matter can't be read. An ADR with no
-/// entry in `tags` has no tags.
-pub(super) fn load(files: Vec<AdrFile>, tags: Option<&str>) -> Loaded {
-    let mut tags_by_number = HashMap::new();
-    for (number, tags) in tag_entries(tags) {
-        tags_by_number.entry(number).or_insert(tags);
-    }
-    let mut adrs = Vec::new();
-    let mut warnings = Vec::new();
-    for file in files {
-        let Ok(front_matter) = parse_front_matter(&file.text) else {
-            warnings.push(format!(
-                "{}: front matter can't be read, so it's left out; `cargo xtask check-docs` has \
-                 the details",
-                file.path()
-            ));
-            continue;
-        };
-        let FrontMatter { number, title, summary, date, supersedes } = front_matter;
-        let tags = tags_by_number.get(&number).cloned().unwrap_or_default();
-        let AdrFile { dir, name, .. } = file;
-        adrs.push(Adr { dir, name, number, title, summary, date, supersedes, tags });
-    }
-    adrs.sort_by_key(|adr| adr.number);
-
-    let mut tags = Tags::new();
-    for adr in &adrs {
-        for tag in &adr.tags {
-            tags.entry(tag.clone()).or_default().insert(adr.number);
-        }
-    }
-    Loaded { records: Records { adrs, tags }, warnings }
 }
 
 #[cfg(test)]
