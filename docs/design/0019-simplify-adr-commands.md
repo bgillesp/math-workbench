@@ -370,6 +370,7 @@ writes the date.
 
 `adr` also gains a recipe, `just adr <args>`. It had none because `just` splits a quoted title, and
 no argument contains spaces now. `cargo xtask adr` still works, and the docs that use it can stay.
+The usage text points to the template, for anyone looking for `adr new`.
 
 ### Effect on #4
 
@@ -396,11 +397,12 @@ stop `context` as it stops `adr list`. The issue's description should be updated
 That's from 2,790 lines to about 1,000. `AdrFile` goes, since nothing keeps a file's text after
 parsing it. `docs::front_matter` stays as it is, since design docs have a single `status` field.
 
-The work lands in three PRs, each with its own test review, with sizes as estimates:
+The work lands in three PRs, each with its own test review, with sizes as estimates until a PR is
+built:
 
 | PR | Changes | Changed lines |
 |---|---|---|
-| 1. Commands | Removes `new.rs` and `print.rs`, simplifies `adr list` and `adr tags`, adds the recipe, and drops the requirement that every ADR has tags. Rewrites the template's instructions for the current format. This PR numbers the design doc | About 1,200, almost all deletions |
+| 1. Commands | Removes `new.rs` and `print.rs`, simplifies `adr list` and `adr tags`, adds the recipe, and drops the requirement that every ADR has tags. Rewrites the template's instructions for the current format. This PR numbers the design doc | About 1,300 besides this doc, almost all deletions |
 | 2. Loading | `load` and `load_tags`, `check` over `Records`, and the split between structural and consistency checks. `adr list` and `adr tags` fail on structural problems, and `adr tags` moves into `list.rs`. Passes and fails `check-docs` on the same files as before | About 800, half of it tests moving from `check.rs` to `records.rs` |
 | 3. Format | The new `yaml.rs` rules, the fields that depend on them, and `tags.yaml` keyed by tag, with the template and guide updated. Closes #16 | About 500 |
 
