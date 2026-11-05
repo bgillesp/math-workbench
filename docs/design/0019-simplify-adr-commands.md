@@ -1,14 +1,18 @@
 ---
-status: draft
+status: accepted
 ---
 
 # Simplify the ADR Commands
 
+> Design doc for [#19](https://github.com/bgillesp/math-workbench/pull/19), part of
+> [#16](https://github.com/bgillesp/math-workbench/issues/16). Two follow-up PRs finish the work,
+> and the last closes #16.
+
 ## Context
 
 [#16](https://github.com/bgillesp/math-workbench/issues/16) asks to shrink `xtask::adr`. ADRs are
-written rarely, but the [ADR directories design](../design/0010-adr-directories.md) gave them 2,790
-lines of tooling: 1,646 of code and 1,144 of tests and fixtures. The weight comes from four places:
+written rarely, but the [ADR directories design](0010-adr-directories.md) gave them 2,790 lines of
+tooling: 1,646 of code and 1,144 of tests and fixtures. The weight comes from four places:
 
 - **Commands that save little typing.** `adr new` is 589 lines, with slug derivation, `tags.yaml`
   editing, and a calendar conversion from git's clock, to automate something done a few times a
