@@ -7,8 +7,9 @@ status: draft
 <!--
 Draft in docs/wip/. Once the draft PR is open, move it to docs/design/NNNN-short-title.md, where
 NNNN is the PR number. A human developer accepts the doc (status: accepted) before implementation
-starts. Revise it until the PR merges so it describes what was built, and set the status to
-implemented before merge; the doc is frozen from then on.
+starts. The implementation can span several PRs, and the doc can merge as accepted. Revise it
+until the implementation is complete so it describes what was built. The PR that completes the
+implementation sets the status to implemented, and the doc is frozen from then on.
 -->
 
 ## Context

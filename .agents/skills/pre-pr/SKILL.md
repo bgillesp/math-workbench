@@ -18,8 +18,9 @@ order, fixing what you can and reporting what you can't.
    and guides.
 5. Empty `docs/wip/`, moving each note to its home using the
    [branch notes table](../../../docs/guides/development.md#branch-notes).
-6. For a major change, revise the design doc to describe what was built, and set its status to
-   `implemented`.
+6. For a major change, revise the design doc to match what's been built so far. If this PR
+   completes the implementation, set the doc's status to `implemented`. Otherwise leave it
+   `accepted`. `just ci` passes either way, so it won't catch a missed update.
 7. Draft the PR title in Conventional Commits form, scoped by crate, and a description following
    the [PR template](../../../.github/pull_request_template.md). Leave out "Tests and docs" and
    "Dependencies and `unsafe`" when they don't apply. Show the title and description to the

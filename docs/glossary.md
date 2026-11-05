@@ -26,5 +26,5 @@ before merge.
 [development guide](guides/development.md).
 
 **Design doc.** The design for one major change, accepted before implementation, revised until
-its PR merges, and frozen after. Named by PR number, as in
-`docs/design/0042-typed-wire-validation.md`.
+its implementation is complete, which may take several PRs, and frozen after. Named by the number
+of the PR that first adds it, as in `docs/design/0042-typed-wire-validation.md`.
