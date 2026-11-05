@@ -1,25 +1,25 @@
 //! `adr`: architecture decision records, kept in `active/` and `superseded/` directories.
 //!
 //! Each ADR's front matter is written once, when the ADR is created, and never refers to later
-//! ADRs. Its tags live in `tags.yaml`, which can change as the architecture grows. The design is
-//! in `docs/design/0010-adr-directories.md`.
+//! ADRs. Its tags live in `tags.yaml`, which can change as the architecture grows. Authors write
+//! these files by hand, following `docs/templates/adr.md`, and this module only reads them. The
+//! designs are in `docs/design/0010-adr-directories.md` and
+//! `docs/design/0019-simplify-adr-commands.md`.
 //!
 //! `yaml` reads the flat subset of YAML that the front matter and `tags.yaml` use, `records`
-//! reads the ADRs and their tags, and `check` holds the ADR checks that `check-docs` runs. `list`,
-//! `tags`, `print`, and `new` each implement one subcommand, with its arguments and output.
+//! reads the ADRs and their tags, and `check` holds the ADR checks that `check-docs` runs. `list`
+//! and `tags` each implement one subcommand, with its arguments and output.
 
 mod check;
 #[cfg(test)]
 mod fixtures;
 mod list;
-mod new;
-mod print;
 mod records;
 mod tags;
 mod yaml;
 
 use std::error::Error;
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsString;
 use std::fmt::Write;
 use std::io;
 use std::path::Path;
@@ -82,10 +82,6 @@ enum Command {
     List(list::Options),
     /// `adr tags`.
     Tags,
-    /// `adr print`, with the numbers of the ADRs to print.
-    Print(Vec<u32>),
-    /// `adr new`, with its arguments.
-    New(new::Args),
     /// `-h` or `--help`, which prints the usage text.
     Help,
 }
@@ -96,37 +92,25 @@ struct Subcommand {
     name: &'static str,
     /// Its arguments, as the usage text shows them.
     args: &'static str,
-    /// What it prints or does.
+    /// What it prints.
     summary: &'static str,
     /// Parses the arguments after its name.
     parse: fn(lexopt::Parser) -> Result<Command, lexopt::Error>,
 }
 
 /// The subcommands, which both `parse_args` and the usage text read.
-const SUBCOMMANDS: [Subcommand; 4] = [
+const SUBCOMMANDS: [Subcommand; 2] = [
     Subcommand {
         name: "list",
-        args: "[--all] [--tags[=<tags>]] [--verbose]",
-        summary: "the ADRs in force by number, or grouped by tag",
+        args: "[--all] [--verbose] [--tags=<tags>]",
+        summary: "the ADRs in force by number, or grouped under the given tags",
         parse: |parser| list::parse_args(parser).map(Command::List),
     },
     Subcommand {
         name: "tags",
         args: "",
-        summary: "each tag, with the number of ADRs in force that use it",
+        summary: "every tag, one per line",
         parse: |parser| tags::parse_args(parser).map(|()| Command::Tags),
-    },
-    Subcommand {
-        name: "print",
-        args: "<N>...",
-        summary: "the named ADRs in full",
-        parse: |parser| print::parse_args(parser).map(Command::Print),
-    },
-    Subcommand {
-        name: "new",
-        args: "<title> --tags=<tags> [--supersedes=<N>,...]",
-        summary: "create an ADR, and move the ADRs it supersedes to `superseded/`",
-        parse: |parser| new::parse_args(parser).map(Command::New),
     },
 ];
 
@@ -162,8 +146,6 @@ fn execute(root: &Path, command: Command) -> Result<String, Box<dyn Error>> {
     Ok(match command {
         Command::List(options) => list::render(&load(root)?, &options)?,
         Command::Tags => tags::render(&load(root)?),
-        Command::Print(numbers) => print::render(&load(root)?, &numbers)?,
-        Command::New(args) => new::run(root, &args)?,
         Command::Help => format!("{}\n", usage()),
     })
 }
@@ -205,26 +187,10 @@ fn usage() -> String {
         let _ = writeln!(usage, "  {}\n      {}", line.trim_end(), subcommand.summary);
     }
     usage.push_str(
-        "\nADR numbers can be given as 3, 0003, or ADR-0003. Options take their values attached,\n\
-         as in --tags=graph,wires.\n\noptions:\n  -h, --help    print this message",
+        "\nOptions take their values attached, as in --tags=graph,wires. To write an ADR, follow\n\
+         docs/templates/adr.md.\n\noptions:\n  -h, --help    print this message",
     );
     usage
-}
-
-/// An ADR number given as `3`, `0003`, or `ADR-0003`.
-fn parse_number(text: &str) -> Option<u32> {
-    let digits = text.strip_prefix("ADR-").unwrap_or(text);
-    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
-        return None;
-    }
-    digits.parse().ok()
-}
-
-/// An ADR number given as an argument, or an error saying what forms one takes.
-fn number_arg(text: &str) -> Result<u32, lexopt::Error> {
-    parse_number(text).ok_or_else(|| {
-        format!("`{text}` isn't an ADR number; use a form like 3, 0003, or ADR-0003").into()
-    })
 }
 
 /// The comma-separated items attached to `--option=`, or an error if there are none, naming
@@ -241,13 +207,6 @@ fn list_arg(option: &str, value: OsString, noun: &str) -> Result<Vec<String>, le
         return Err(format!("`--{option}=` needs at least one {noun}").into());
     }
     Ok(items)
-}
-
-/// The error for `value` given after `--option` with a space, where it has to be attached.
-fn detached_value(option: &str, value: &OsStr) -> lexopt::Error {
-    let value = value.to_string_lossy();
-    format!("`{value}` looks like a value for `--{option}`; attach it as `--{option}={value}`")
-        .into()
 }
 
 /// The number in an ADR id like `ADR-0003`.
@@ -340,16 +299,5 @@ mod tests {
             String::from_utf8_lossy(&output.stderr).trim(),
             "cargo xtask adr list --tags=graph,wires"
         );
-    }
-
-    #[test]
-    fn numbers_parse_in_each_form() {
-        assert_eq!(parse_number("3"), Some(3));
-        assert_eq!(parse_number("0003"), Some(3));
-        assert_eq!(parse_number("ADR-0003"), Some(3));
-        assert_eq!(parse_number("ADR-0120"), Some(120));
-        for bad in ["", "x", "ADR-", "3a", "-3", "ADR-x"] {
-            assert_eq!(parse_number(bad), None, "{bad:?}");
-        }
     }
 }

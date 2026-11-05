@@ -1,6 +1,6 @@
-//! `adr tags`: each tag, with the number of ADRs in force that use it.
+//! `adr tags`: every tag, one per line.
 
-use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::fmt::Write;
 
 use super::records::Adr;
@@ -15,18 +15,13 @@ pub(super) fn parse_args(mut parser: lexopt::Parser) -> Result<(), lexopt::Error
 
 /// The `adr tags` output for `adrs`.
 pub(super) fn render(adrs: &[Adr]) -> String {
-    let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
-    for adr in adrs {
-        for tag in &adr.tags {
-            *counts.entry(tag).or_default() += usize::from(adr.is_active());
-        }
-    }
-    if counts.is_empty() {
+    let tags: BTreeSet<&String> = adrs.iter().flat_map(|adr| &adr.tags).collect();
+    if tags.is_empty() {
         return "None yet.\n".to_string();
     }
     let mut output = String::new();
-    for (tag, count) in counts {
-        let _ = writeln!(output, "- {tag} ({count})");
+    for tag in tags {
+        let _ = writeln!(output, "{tag}");
     }
     output
 }

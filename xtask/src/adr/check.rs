@@ -74,14 +74,10 @@ pub(super) enum ProblemKind {
     // tags.yaml
     /// A line isn't `ADR-NNNN: tag, tag`.
     TagsMalformedLine { line: String },
-    /// The ADR has no entry.
-    TagsMissing { number: u32 },
     /// The entry names an ADR that doesn't exist.
     TagsForMissingAdr { number: u32 },
     /// The ADR has more than one entry.
     DuplicateTagsEntry { number: u32 },
-    /// The entry lists no tags.
-    NoTags { number: u32 },
     /// A tag isn't lowercase letters, digits, and hyphens.
     BadTag { number: u32, tag: String },
 }
@@ -147,17 +143,11 @@ impl fmt::Display for ProblemKind {
             Self::TagsMalformedLine { line } => {
                 write!(f, "`{line}` isn't an entry like `ADR-0003: graph, wires`")
             },
-            Self::TagsMissing { number } => {
-                write!(f, "ADR-{number:04} has no entry; give it at least one tag")
-            },
             Self::TagsForMissingAdr { number } => {
                 write!(f, "there's an entry for ADR-{number:04}, which doesn't exist")
             },
             Self::DuplicateTagsEntry { number } => {
                 write!(f, "ADR-{number:04} has more than one entry")
-            },
-            Self::NoTags { number } => {
-                write!(f, "ADR-{number:04} has no tags; give it at least one")
             },
             Self::BadTag { number, tag } => write!(
                 f,
@@ -253,8 +243,8 @@ fn check_supersedes(adrs: &[Checked<'_>]) -> Vec<Problem> {
     problems
 }
 
-/// Checks that `tags.yaml` has exactly one entry for each ADR, and none for an ADR that doesn't
-/// exist, and that each entry has at least one well-formed tag.
+/// Checks that `tags.yaml` has at most one entry for each ADR, and none for an ADR that doesn't
+/// exist, and that each tag is well formed. An ADR doesn't need an entry, or tags in its entry.
 fn check_tags(adrs: &[Checked<'_>], tags: &str) -> Vec<Problem> {
     let mut kinds = Vec::new();
     // The ADRs with an entry, including entries whose quoted value couldn't be read.
@@ -287,16 +277,11 @@ fn check_tags(adrs: &[Checked<'_>], tags: &str) -> Vec<Problem> {
             kinds.push(ProblemKind::DuplicateTagsEntry { number });
         } else if !numbers.contains(&number) {
             kinds.push(ProblemKind::TagsForMissingAdr { number });
-        } else if entry.value.text().is_empty() {
-            kinds.push(ProblemKind::NoTags { number });
-        } else {
+        } else if !entry.value.text().is_empty() {
             for tag in split_tags(entry.value.text()).filter(|tag| !is_tag(tag)) {
                 kinds.push(ProblemKind::BadTag { number, tag: tag.to_string() });
             }
         }
-    }
-    for &number in numbers.difference(&entered) {
-        kinds.push(ProblemKind::TagsMissing { number });
     }
     kinds.into_iter().map(|kind| Problem { path: TAGS_PATH.to_string(), kind }).collect()
 }

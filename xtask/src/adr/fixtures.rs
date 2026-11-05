@@ -1,14 +1,12 @@
 //! Fixtures shared by the tests of the `adr` modules.
 
-use std::collections::BTreeMap;
 use std::fmt::Write;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use super::Dir::{Active, Superseded};
-use super::new::{Args, TEMPLATE};
 use super::records::{Adr, load};
-use super::{ADR_DIR, AdrFile, Dir};
+use super::{AdrFile, Dir};
 
 /// An ADR file in `dir` with the given name and contents.
 pub(super) fn file(dir: Dir, name: &str, text: &str) -> AdrFile {
@@ -100,30 +98,6 @@ impl TempRoot {
         fs::write(target, text).unwrap();
     }
 
-    /// Reads the file at a repository-relative path.
-    pub(super) fn read(&self, relative: &str) -> String {
-        fs::read_to_string(self.0.join(relative)).unwrap()
-    }
-
-    /// Every file under the root, by repository-relative path.
-    pub(super) fn snapshot(&self) -> BTreeMap<String, String> {
-        fn walk(base: &Path, dir: &Path, files: &mut BTreeMap<String, String>) {
-            for entry in fs::read_dir(dir).unwrap() {
-                let entry = entry.unwrap().path();
-                if entry.is_dir() {
-                    walk(base, &entry, files);
-                } else {
-                    let relative = entry.strip_prefix(base).unwrap();
-                    let relative = relative.to_string_lossy().replace('\\', "/");
-                    files.insert(relative, fs::read_to_string(&entry).unwrap());
-                }
-            }
-        }
-        let mut files = BTreeMap::new();
-        walk(&self.0, &self.0, &mut files);
-        files
-    }
-
     /// Writes an ADR file at its place under `ADR_DIR`.
     pub(super) fn write_adr(&self, adr: &AdrFile) {
         self.write(&adr.path(), &adr.text);
@@ -133,29 +107,5 @@ impl TempRoot {
 impl Drop for TempRoot {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
-    }
-}
-
-/// A short ADR template, in the shape of `docs/templates/adr.md`.
-pub(super) const TEMPLATE_TEXT: &str = "<!--\nCreate ADRs with `cargo xtask adr new`.\n-->\n\n\
-                                        # ADR-NNNN: Decision title\n\n## Context\n\n\
-                                        The problem.\n";
-
-/// A scratch repository with the ADR template, ADRs 0001 and 0002 in force, and their tags.
-pub(super) fn repository(name: &str) -> TempRoot {
-    let root = TempRoot::new(name);
-    root.write(TEMPLATE, TEMPLATE_TEXT);
-    root.write_adr(&valid(Active, 1, &[]));
-    root.write_adr(&valid(Active, 2, &[]));
-    root.write(&format!("{ADR_DIR}/tags.yaml"), "ADR-0001: graph\nADR-0002: file-format\n");
-    root
-}
-
-/// Arguments for `adr new`.
-pub(super) fn new_args(title: &str, tags: &[&str], supersedes: &[u32]) -> Args {
-    Args {
-        title: title.to_string(),
-        tags: tags.iter().map(ToString::to_string).collect(),
-        supersedes: supersedes.to_vec(),
     }
 }

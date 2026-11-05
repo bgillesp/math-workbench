@@ -44,6 +44,10 @@ audit:
 check-repo:
     cargo xtask check-docs
 
+# List ADRs and their tags (`just adr --help` for more)
+adr *args:
+    cargo xtask adr {{args}}
+
 # Run every CI check except the merge-readiness check; use while working
 check: fmt-check lint test doc deny check-repo
 

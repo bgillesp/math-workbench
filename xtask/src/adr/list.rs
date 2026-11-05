@@ -1,10 +1,7 @@
-//! `adr list`: the ADRs by number, or grouped by tag.
+//! `adr list`: the ADRs by number, or grouped under the given tags.
 
-use std::collections::BTreeSet;
-use std::fmt;
-
+use super::list_arg;
 use super::records::Adr;
-use super::{detached_value, list_arg};
 
 /// The column summaries are wrapped at with `--verbose`.
 const SUMMARY_WIDTH: usize = 80;
@@ -15,8 +12,6 @@ pub(super) enum Grouping {
     /// One list, by number.
     #[default]
     Flat,
-    /// Grouped under every tag, alphabetically.
-    AllTags,
     /// Grouped under the given tags, in the order given.
     Tags(Vec<String>),
 }
@@ -28,59 +23,34 @@ pub(super) struct Options {
     pub(super) all: bool,
     /// Whether and how to group the entries by tag.
     pub(super) grouping: Grouping,
-    /// Add each ADR's summary below its entry.
+    /// Add each ADR's path and summary below its entry.
     pub(super) verbose: bool,
 }
-
-/// `--tags=` named a tag that no ADR has.
-#[derive(Debug, PartialEq, Eq)]
-pub(super) struct UnknownTag {
-    /// The tag that was asked for.
-    pub(super) tag: String,
-    /// Every tag the ADRs use, sorted.
-    pub(super) existing: Vec<String>,
-}
-
-impl fmt::Display for UnknownTag {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.existing.is_empty() {
-            return write!(f, "no ADR has the tag `{}`, or any tags yet", self.tag);
-        }
-        write!(f, "no ADR has the tag `{}`; the tags are {}", self.tag, self.existing.join(", "))
-    }
-}
-
-impl std::error::Error for UnknownTag {}
 
 /// Parses the arguments after `adr list`.
 pub(super) fn parse_args(mut parser: lexopt::Parser) -> Result<Options, lexopt::Error> {
     use lexopt::prelude::*;
 
     let mut options = Options::default();
-    // Whether the previous argument was `--tags` without a value.
-    let mut bare_tags = false;
     while let Some(arg) = parser.next()? {
-        let after_bare_tags = std::mem::take(&mut bare_tags);
         match arg {
             Long("all") => options.all = true,
             Long("verbose") => options.verbose = true,
             Long("tags") => {
-                if let Some(value) = parser.optional_value() {
-                    options.grouping = Grouping::Tags(list_arg("tags", value, "tag")?);
-                } else {
-                    options.grouping = Grouping::AllTags;
-                    bare_tags = true;
-                }
+                let value = parser.optional_value().ok_or(
+                    "`--tags` takes its value attached, as in `--tags=graph,wires`; `cargo xtask \
+                     adr tags` lists the tags",
+                )?;
+                options.grouping = Grouping::Tags(list_arg("tags", value, "tag")?);
             },
-            Value(value) if after_bare_tags => return Err(detached_value("tags", &value)),
             arg => return Err(arg.unexpected()),
         }
     }
     Ok(options)
 }
 
-/// The `adr list` output for `adrs`.
-pub(super) fn render(adrs: &[Adr], options: &Options) -> Result<String, UnknownTag> {
+/// The `adr list` output for `adrs`, or an error naming a tag that no ADR has.
+pub(super) fn render(adrs: &[Adr], options: &Options) -> Result<String, String> {
     if adrs.is_empty() {
         return Ok("None yet.\n".to_string());
     }
@@ -91,17 +61,13 @@ pub(super) fn render(adrs: &[Adr], options: &Options) -> Result<String, UnknownT
         }
         adrs.iter().map(|adr| entry(adr, options.verbose)).collect()
     };
-    let tags: Vec<String> = match &options.grouping {
+    let tags = match &options.grouping {
         Grouping::Flat => return Ok(entries(&shown)),
-        Grouping::AllTags => tags_of(&shown),
-        Grouping::Tags(tags) => {
-            let existing = tags_of(&adrs.iter().collect::<Vec<_>>());
-            if let Some(tag) = tags.iter().find(|tag| !existing.contains(tag)) {
-                return Err(UnknownTag { tag: tag.clone(), existing });
-            }
-            tags.clone()
-        },
+        Grouping::Tags(tags) => tags,
     };
+    if let Some(tag) = tags.iter().find(|tag| !adrs.iter().any(|adr| adr.tags.contains(tag))) {
+        return Err(format!("there's no tag `{tag}`; `cargo xtask adr tags` lists the tags"));
+    }
     let groups: Vec<String> = tags
         .iter()
         .map(|tag| {
@@ -113,13 +79,7 @@ pub(super) fn render(adrs: &[Adr], options: &Options) -> Result<String, UnknownT
     Ok(groups.join("\n"))
 }
 
-/// Every tag that `adrs` use, sorted.
-fn tags_of(adrs: &[&Adr]) -> Vec<String> {
-    let tags: BTreeSet<&String> = adrs.iter().flat_map(|adr| &adr.tags).collect();
-    tags.into_iter().cloned().collect()
-}
-
-/// An ADR's entry in the list, with its summary below it if `verbose`.
+/// An ADR's entry in the list, with its path and summary below it if `verbose`.
 fn entry(adr: &Adr, verbose: bool) -> String {
     let mut entry = format!("- ADR-{:04}: {}", adr.front_matter.number, adr.front_matter.title);
     if !adr.tags.is_empty() {
@@ -130,6 +90,7 @@ fn entry(adr: &Adr, verbose: bool) -> String {
     }
     entry.push('\n');
     if verbose {
+        entry = format!("{entry}  {}\n", adr.file.path());
         entry.push_str(&wrap(&adr.front_matter.summary, SUMMARY_WIDTH, "  "));
         entry.push('\n');
     }
@@ -291,11 +252,7 @@ mod tests {
     fn unknown_tags_point_to_adr_tags() {
         let message = "there's no tag `graphs`; `cargo xtask adr tags` lists the tags";
         for tags in [&["graphs"][..], &["graph", "graphs"]] {
-            assert_eq!(
-                render(&sample(), &grouped(tags)).unwrap_err().to_string(),
-                message,
-                "{tags:?}"
-            );
+            assert_eq!(render(&sample(), &grouped(tags)), Err(message.to_string()), "{tags:?}");
         }
     }
 
