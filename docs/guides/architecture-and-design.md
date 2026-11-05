@@ -59,35 +59,30 @@ The `title` and `summary` are double-quoted, and the summary, a sentence or two 
 characters, may continue on indented lines. `supersedes` is there only for an ADR that replaces
 earlier ones.
 
-Tags say broadly what each ADR affects. They live in `decisions/tags.yaml`, one entry per ADR,
-sorted by id, as in `ADR-0003: graph, wires`, and a tag is lowercase letters, digits, and hyphens.
-Unlike the ADRs, `tags.yaml` is a living file: tags can be added, renamed, or merged in any PR as
-the architecture grows, and a superseded ADR keeps its tags. There's no list of allowed tags, so
-reuse an existing tag where one fits.
+Tags say broadly what each ADR affects. They live in `decisions/tags.yaml`, with at most one entry
+per ADR, sorted by id, as in `ADR-0003: graph, wires`, and a tag is lowercase letters, digits, and
+hyphens. Unlike the ADRs, `tags.yaml` is a living file: tags can be added, renamed, or merged in any
+PR as the architecture grows, and a superseded ADR keeps its tags. There's no list of allowed tags,
+so reuse an existing tag where one fits. An ADR doesn't need a tag, but one with no tags can't be
+found by tag, so give each ADR at least one.
 
-To write an ADR:
-
-1. Run `cargo xtask adr new "<title>" --tags=<tags>`, adding `--supersedes=<N>,...` to replace
-   earlier ADRs. It writes `active/NNNN-slug.md` from the [template](../templates/adr.md), adds
-   the entry to `tags.yaml`, and moves the ADRs it supersedes to `superseded/`. Moving them
-   doesn't count as editing them. It also notes any tag that no other ADR uses, so near-duplicates
-   such as `graph` and `graphs` don't creep in.
-2. Write the summary and the body. A superseding ADR restates whatever still holds from the ADRs
-   it replaces, so the current decision can be read from one document.
-3. Open a PR.
+To write an ADR, copy the [template](../templates/adr.md) and follow the steps in its comment. The
+tooling only reads ADRs, so creating one, moving the ones it supersedes to `superseded/`, and adding
+its tags are all ordinary edits, and moving an ADR doesn't count as editing it. A superseding ADR
+restates whatever still holds from the ADRs it replaces, so the current decision can be read from
+one document.
 
 `cargo xtask check-docs` checks the file names, the front matter, the supersede links, and
-`tags.yaml`. Until the summary is written, it reports it as empty. Two branches that each add an
-ADR take the same number, so the second to merge fails the check once it's up to date with `main`,
-and its ADR is renumbered by hand.
+`tags.yaml`, and it reports any front matter left as the template has it. Two branches that each add
+an ADR take the same number, so the second to merge fails the check once it's up to date with
+`main`, and its ADR is renumbered by hand.
 
 `cargo xtask adr` also prints views of the ADRs:
 
 - `adr list` lists the ADRs in force by number, with their tags. `--all` adds the superseded ones,
-  `--tags` groups them by tag, `--tags=graph,wires` groups them under just those tags, and
-  `--verbose` adds each summary.
-- `adr tags` lists each tag, with the number of ADRs in force that use it.
-- `adr print <N>...` prints ADRs in full, with whether each is in force.
+  `--tags` groups them by tag, with any that have no tags under `(no tags)`, `--tags=graph,wires`
+  groups them under just those tags, and `--verbose` adds each path and summary.
+- `adr tags` lists every tag.
 
 ADRs and design docs cite ADRs by id in prose, as in `ADR-0003`, rather than with links, since a
 link breaks when its target moves to `superseded/`, and fixing it would mean editing a frozen

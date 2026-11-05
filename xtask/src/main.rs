@@ -2,7 +2,7 @@
 //!
 //! Run through the `cargo xtask` alias, usually from a `just` recipe. Each check prints the
 //! problems it finds and exits with a failure status if there are any. `adr` instead prints views
-//! of the ADRs, or creates one, and takes a subcommand of its own.
+//! of the ADRs, and takes a subcommand of its own.
 
 mod adr;
 mod docs;
@@ -44,7 +44,7 @@ impl Command {
 
     fn summary(self) -> &'static str {
         match self {
-            Self::Adr => "list, print, and create ADRs (`cargo xtask adr --help` for more)",
+            Self::Adr => "list ADRs and their tags (`cargo xtask adr --help` for more)",
             Self::CheckDocs => "ADRs, design docs, and relative links are consistent",
             Self::CheckReady => "no branch notes, and every design doc is accepted or implemented",
             Self::Doctor => "warn about missing tools or a broken skills symlink",

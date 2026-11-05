@@ -240,7 +240,7 @@ pub(super) fn read_adr_files(root: &Path) -> io::Result<(Vec<AdrFile>, Option<St
 }
 
 /// The contents of the file at `path` under `root`, or `None` if there's no file there.
-pub(super) fn read_optional(root: &Path, path: &str) -> io::Result<Option<String>> {
+fn read_optional(root: &Path, path: &str) -> io::Result<Option<String>> {
     match fs::read_to_string(root.join(path)) {
         Ok(text) => Ok(Some(text)),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
@@ -249,13 +249,13 @@ pub(super) fn read_optional(root: &Path, path: &str) -> io::Result<Option<String
 }
 
 /// `err`, with the repository-relative path it happened at in its message.
-pub(super) fn at(path: &str, err: &io::Error) -> io::Error {
+fn at(path: &str, err: &io::Error) -> io::Error {
     io::Error::new(err.kind(), format!("{path}: {err}"))
 }
 
 /// The entries in `tags` whose key is an ADR id, in order, with their tags. The rest is left to
 /// `check-docs`.
-pub(super) fn tag_entries(tags: Option<&str>) -> Vec<(u32, Vec<String>)> {
+fn tag_entries(tags: Option<&str>) -> Vec<(u32, Vec<String>)> {
     let (entries, _) = yaml::read(tags.unwrap_or_default());
     entries
         .iter()

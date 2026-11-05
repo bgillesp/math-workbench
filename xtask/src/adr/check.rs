@@ -74,14 +74,10 @@ pub(super) enum ProblemKind {
     // tags.yaml
     /// A line isn't `ADR-NNNN: tag, tag`.
     TagsMalformedLine { line: String },
-    /// The ADR has no entry.
-    TagsMissing { number: u32 },
     /// The entry names an ADR that doesn't exist.
     TagsForMissingAdr { number: u32 },
     /// The ADR has more than one entry.
     DuplicateTagsEntry { number: u32 },
-    /// The entry lists no tags.
-    NoTags { number: u32 },
     /// A tag isn't lowercase letters, digits, and hyphens.
     BadTag { number: u32, tag: String },
 }
@@ -147,17 +143,11 @@ impl fmt::Display for ProblemKind {
             Self::TagsMalformedLine { line } => {
                 write!(f, "`{line}` isn't an entry like `ADR-0003: graph, wires`")
             },
-            Self::TagsMissing { number } => {
-                write!(f, "ADR-{number:04} has no entry; give it at least one tag")
-            },
             Self::TagsForMissingAdr { number } => {
                 write!(f, "there's an entry for ADR-{number:04}, which doesn't exist")
             },
             Self::DuplicateTagsEntry { number } => {
                 write!(f, "ADR-{number:04} has more than one entry")
-            },
-            Self::NoTags { number } => {
-                write!(f, "ADR-{number:04} has no tags; give it at least one")
             },
             Self::BadTag { number, tag } => write!(
                 f,
@@ -253,8 +243,8 @@ fn check_supersedes(adrs: &[Checked<'_>]) -> Vec<Problem> {
     problems
 }
 
-/// Checks that `tags.yaml` has exactly one entry for each ADR, and none for an ADR that doesn't
-/// exist, and that each entry has at least one well-formed tag.
+/// Checks that `tags.yaml` has at most one entry for each ADR, and none for an ADR that doesn't
+/// exist, and that each tag is well formed. An ADR doesn't need an entry, or tags in its entry.
 fn check_tags(adrs: &[Checked<'_>], tags: &str) -> Vec<Problem> {
     let mut kinds = Vec::new();
     // The ADRs with an entry, including entries whose quoted value couldn't be read.
@@ -287,16 +277,11 @@ fn check_tags(adrs: &[Checked<'_>], tags: &str) -> Vec<Problem> {
             kinds.push(ProblemKind::DuplicateTagsEntry { number });
         } else if !numbers.contains(&number) {
             kinds.push(ProblemKind::TagsForMissingAdr { number });
-        } else if entry.value.text().is_empty() {
-            kinds.push(ProblemKind::NoTags { number });
-        } else {
+        } else if !entry.value.text().is_empty() {
             for tag in split_tags(entry.value.text()).filter(|tag| !is_tag(tag)) {
                 kinds.push(ProblemKind::BadTag { number, tag: tag.to_string() });
             }
         }
-    }
-    for &number in numbers.difference(&entered) {
-        kinds.push(ProblemKind::TagsMissing { number });
     }
     kinds.into_iter().map(|kind| Problem { path: TAGS_PATH.to_string(), kind }).collect()
 }
@@ -306,9 +291,9 @@ mod tests {
     use super::ProblemKind::{
         ActiveButSuperseded, BadDate, BadId, BadName, BadSupersedesEntry, BadTag, DuplicateId,
         DuplicateKey, DuplicateTagsEntry, EmptyField, IdMismatch, MalformedLine, MissingField,
-        NoTags, NotQuoted, QuoteOrBackslash, SummaryTooLong, SupersededButNotListed,
-        SupersededByMany, SupersedesMissing, SupersedesNotLower, TagsForMissingAdr,
-        TagsMalformedLine, TagsMissing, UnknownKey, UnterminatedQuote,
+        NotQuoted, QuoteOrBackslash, SummaryTooLong, SupersededButNotListed, SupersededByMany,
+        SupersedesMissing, SupersedesNotLower, TagsForMissingAdr, TagsMalformedLine, UnknownKey,
+        UnterminatedQuote,
     };
     use super::*;
     use crate::adr::Dir::{Active, Superseded};
@@ -523,19 +508,26 @@ mod tests {
     }
 
     #[test]
-    fn every_adr_needs_one_well_formed_tags_entry() {
-        let files = [
-            valid(Active, 1, &[]),
-            valid(Active, 2, &[]),
-            valid(Active, 3, &[]),
-        ];
-        let tags = "ADR-0001: graph\nADR-0001: wires\nADR-0003:\nADR-0004: graph\n";
+    fn adrs_dont_need_tags() {
+        let files = [valid(Active, 1, &[]), valid(Active, 2, &[])];
+        for tags in [
+            None,
+            Some(""),
+            Some("ADR-0001: graph\n"),
+            Some("ADR-0001:\n"),
+        ] {
+            assert_eq!(check(&files, tags), Vec::<Problem>::new(), "{tags:?}");
+        }
+    }
+
+    #[test]
+    fn tags_entries_must_be_well_formed() {
+        let files = [valid(Active, 1, &[])];
+        let tags = "ADR-0001: graph\nADR-0001: wires\nADR-0004: graph\n";
         assert_eq!(
             sorted(check(&files, Some(tags))),
             sorted(vec![
                 problem(TAGS_PATH, DuplicateTagsEntry { number: 1 }),
-                problem(TAGS_PATH, TagsMissing { number: 2 }),
-                problem(TAGS_PATH, NoTags { number: 3 }),
                 problem(TAGS_PATH, TagsForMissingAdr { number: 4 }),
             ])
         );
@@ -552,13 +544,6 @@ mod tests {
                 TAGS_PATH,
                 TagsMalformedLine { line: "graph: ADR-0001".into() }
             )]
-        );
-        assert_eq!(
-            sorted(check(&files[..2], None)),
-            sorted(vec![
-                problem(TAGS_PATH, TagsMissing { number: 1 }),
-                problem(TAGS_PATH, TagsMissing { number: 2 }),
-            ])
         );
     }
 
@@ -590,11 +575,6 @@ mod tests {
             problem(superseded, SupersededButNotListed).to_string(),
             "docs/architecture/decisions/superseded/0002-decision-2.md: no ADR supersedes this \
              one, so it belongs in `active/`"
-        );
-        assert_eq!(
-            problem(TAGS_PATH, TagsMissing { number: 2 }).to_string(),
-            "docs/architecture/decisions/tags.yaml: ADR-0002 has no entry; give it at least one \
-             tag"
         );
         assert_eq!(
             problem(TAGS_PATH, BadTag { number: 2, tag: "Wires".into() }).to_string(),

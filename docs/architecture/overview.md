@@ -17,7 +17,7 @@ crate to run on. Its scope is set by the crate-structure ADR.
 ### `xtask`
 
 Repository checks, run through `just`: docs consistency and merge readiness. It also has `adr`,
-which lists, prints, and creates ADRs. It's tooling rather than part of the application. Its
+which lists ADRs and their tags. It's tooling rather than part of the application. Its
 dependencies stay minimal, with `lexopt` rather than `clap` for arguments, so it builds quickly
 however large the application's dependency tree grows.
 
