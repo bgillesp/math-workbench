@@ -48,9 +48,7 @@ stay short calls into `cargo` or `xtask`, and anything with real logic is writte
 
 ## Commands
 
-Every command is a recipe in the [justfile](../../justfile), except `cargo xtask adr`, which runs
-directly. `just` joins variadic arguments with spaces, so a quoted ADR title would arrive in
-pieces, while `cargo xtask` passes arguments through the same way in every shell.
+Every command is a recipe in the [justfile](../../justfile).
 
 | Recipe | Runs |
 |---|---|
@@ -63,6 +61,7 @@ pieces, while `cargo xtask` passes arguments through the same way in every shell
 | `just deny` | `cargo deny check bans licenses sources` |
 | `just audit` | `cargo deny check advisories` |
 | `just check-repo` | `cargo xtask check-docs` |
+| `just adr <args>` | `cargo xtask adr <args>` |
 | `just check` | `fmt-check`, `lint`, `test`, `doc`, `deny`, and `check-repo` |
 | `just ci` | `check`, then `cargo xtask check-ready` |
 
@@ -137,7 +136,7 @@ in `.cargo/config.toml`, usually from a recipe. `cargo xtask --help` lists its c
 | `check-docs` | Checks ADRs, design docs, and relative links | `just check-repo` |
 | `check-ready` | Checks that `docs/wip/` is empty or missing, and every design doc is `implemented` | `just ci` |
 | `doctor` | Warns about missing tools, or a broken skills symlink | `just setup` |
-| `adr` | Lists, prints, and creates ADRs; `cargo xtask adr --help` lists its subcommands | Run directly |
+| `adr` | Lists ADRs and their tags; `cargo xtask adr --help` lists its subcommands | `just adr` |
 
 Each check prints an `error:` line for each problem, naming the file or crate to fix, and exits
 with a failure status if it found any. `doctor` only warns, so `just setup` always finishes.
@@ -148,8 +147,9 @@ with a failure status if it found any. `doctor` only warns, so `just setup` alwa
   `decisions/tags.yaml`: file names like `0003-short-title.md`, the front matter schema, ids that
   match the file names and are unique, `supersedes` entries that name existing ADRs with lower
   numbers, at most one successor for each ADR, an ADR in `superseded/` exactly when a later ADR
-  supersedes it, and exactly one entry in `tags.yaml` for each ADR, with at least one well-formed
-  tag. The [architecture and design guide](architecture-and-design.md#architecture-decision-records)
+  supersedes it, and at most one entry in `tags.yaml` for each ADR, with well-formed tags and none
+  for an ADR that doesn't exist. The
+  [architecture and design guide](architecture-and-design.md#architecture-decision-records)
   describes the layout.
 - Design docs in `docs/design/`: file names, unique numbers, and statuses.
 - Every Markdown file that git tracks or would track: relative links and images must point to

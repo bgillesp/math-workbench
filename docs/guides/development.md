@@ -33,9 +33,9 @@ git fetch origin
 git worktree add <worktree-path> -b 42-typed-wire-validation origin/main
 ```
 
-Before changing a crate, read its `lib.rs` docs and the ADRs in force for its area, which
-`cargo xtask adr list --tags` lists by tag. Check the [glossary](../glossary.md) before naming
-anything new.
+Before changing a crate, read its `lib.rs` docs and the ADRs in force for its area.
+`cargo xtask adr tags` lists the tags, and `cargo xtask adr list --tags=<tags>` lists the ADRs that
+have them. Check the [glossary](../glossary.md) before naming anything new.
 
 For work that will span sessions, keep [branch notes](#branch-notes) in the `docs/wip/` directory,
 and open a draft PR early.

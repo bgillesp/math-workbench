@@ -16,7 +16,7 @@ tile's input. Wire types come from the math library's type system.
 
 **ADR.** An architecture decision record: one hard-to-reverse decision, with its context,
 alternatives, and consequences. Cited as `ADR-0003`. The ADRs in force are in
-`architecture/decisions/active/`, each with tags in `tags.yaml`, and `cargo xtask adr list` lists
+`architecture/decisions/active/`, their tags are in `tags.yaml`, and `cargo xtask adr list` lists
 them.
 
 **Branch notes.** Working notes in `docs/wip/`, kept only on a branch and moved to permanent homes

@@ -43,7 +43,7 @@ the record, so every design doc on `main` is `implemented`. `cargo xtask check-r
 | Starting any change | The [development guide](guides/development.md) |
 | Changing the checks, CI, or agent tooling | The [repository guide](guides/repository.md) |
 | Writing or changing tests | The [development guide](guides/development.md#testing) |
-| Changing a crate | Its `lib.rs` docs, and the ADRs in force for its area, from `cargo xtask adr list --tags` |
+| Changing a crate | Its `lib.rs` docs, and the ADRs in force for its area, from `cargo xtask adr tags` and `cargo xtask adr list --tags=<tags>` |
 | Planning a major change | The [design doc template](templates/design-doc.md) and the ADRs in force |
 | Proposing an architecture decision | The [ADR workflow](guides/architecture-and-design.md#architecture-decision-records), and the ADRs in force from `cargo xtask adr list` |
 | Continuing work on a branch | Its branch notes in `wip/` |
