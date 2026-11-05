@@ -8,13 +8,17 @@ use super::records::Adr;
 /// The column summaries are wrapped at with `--verbose`.
 const SUMMARY_WIDTH: usize = 80;
 
+/// The heading for the ADRs with no tags under a bare `--tags`. It can't clash with a real tag,
+/// which can't contain parentheses.
+const NO_TAGS_HEADING: &str = "(no tags)";
+
 /// How `adr list` arranges its entries.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(super) enum Grouping {
     /// One list, by number.
     #[default]
     Flat,
-    /// Grouped under every tag of the ADRs shown, alphabetically.
+    /// Grouped under every tag of the ADRs shown, alphabetically, then any with no tags.
     AllTags,
     /// Grouped under the given tags, in the order given.
     Tags(Vec<String>),
@@ -74,6 +78,7 @@ pub(super) fn render(adrs: &[Adr], options: &Options) -> Result<String, String> 
     };
     let tags: Vec<&String> = match &options.grouping {
         Grouping::Flat => return Ok(entries(&shown)),
+        Grouping::AllTags if shown.is_empty() => return Ok(entries(&shown)),
         Grouping::AllTags => {
             let tags: BTreeSet<&String> = shown.iter().flat_map(|adr| &adr.tags).collect();
             tags.into_iter().collect()
@@ -88,7 +93,7 @@ pub(super) fn render(adrs: &[Adr], options: &Options) -> Result<String, String> 
             tags.iter().collect()
         },
     };
-    let groups: Vec<String> = tags
+    let mut groups: Vec<String> = tags
         .iter()
         .map(|tag| {
             let tagged: Vec<&Adr> =
@@ -96,6 +101,12 @@ pub(super) fn render(adrs: &[Adr], options: &Options) -> Result<String, String> 
             format!("## {tag}\n\n{}", entries(&tagged))
         })
         .collect();
+    if options.grouping == Grouping::AllTags {
+        let untagged: Vec<&Adr> = shown.iter().copied().filter(|adr| adr.tags.is_empty()).collect();
+        if !untagged.is_empty() {
+            groups.push(format!("## {NO_TAGS_HEADING}\n\n{}", entries(&untagged)));
+        }
+    }
     Ok(groups.join("\n"))
 }
 
