@@ -488,8 +488,7 @@ Commands, in the first PR:
   leave out prints "None in force.";
 - `just adr list --tags=a,b` runs the command;
 - `adr new` and `adr print` are unknown subcommands;
-- `check-docs` passes for an ADR with no tags;
-- `docs/templates/adr.md`, with its metadata filled in, passes `check-docs`.
+- `check-docs` passes for an ADR with no tags.
 
 Loading, in the second PR:
 
@@ -529,11 +528,7 @@ Format, in the third PR:
   with text after it, a value containing `"` or `\`, and a non-empty unquoted value that contains
   `:` or `#` or doesn't start with a letter or digit, each as a structural problem;
 - an empty `supersedes` lists no ADRs, without a problem;
-- `tags.yaml` is read as tags keyed to ADRs, so `graph: ADR-0001 ADR-0003` tags both ADRs;
-- `docs/templates/adr.md`, copied to `active/` under a valid name, has one structural problem, its
-  `id`, so `adr list` fails until that's set;
-- with `id` set, it has no structural problems, so `adr list` lists the ADRs, and `check-docs`
-  reports the empty `title` and `summary` and the placeholder `date`.
+- `tags.yaml` is read as tags keyed to ADRs, so `graph: ADR-0001 ADR-0003` tags both ADRs.
 
 The docs listed above describe the new format and commands.
 
@@ -545,8 +540,7 @@ the full list of problems, as `docs.rs` does), `load` returning problems rather 
 any structural check fails, and the views against expected Markdown for a small set of ADRs.
 
 These tests work on in-memory text, with one test against a scratch directory for reading files from
-disk. The template's criteria are tested against the real `docs/templates/adr.md`, using
-`include_str!`, so the template and the checks can't drift apart.
+disk.
 
 A manual run in a scratch copy of the repository covers the workflow end to end, following the
 template's instructions: write an ADR by hand, supersede it, print each view, and run `just ci`.

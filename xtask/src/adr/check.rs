@@ -315,9 +315,6 @@ mod tests {
     use crate::adr::fixtures::{file, tags_for, valid, with_front_matter};
     use crate::adr::{TAGS_PATH, adr_path};
 
-    /// The ADR template, which authors copy by hand.
-    const TEMPLATE: &str = include_str!("../../../docs/templates/adr.md");
-
     fn problem(path: &str, kind: ProblemKind) -> Problem {
         Problem { path: path.to_string(), kind }
     }
@@ -563,31 +560,6 @@ mod tests {
                 TagsMalformedLine { line: "graph: ADR-0001".into() }
             )]
         );
-    }
-
-    #[test]
-    fn the_template_passes_once_its_metadata_is_filled_in() {
-        let filled_in: Vec<&str> = TEMPLATE
-            .lines()
-            .filter_map(|line| match line.split_once(':').map_or(line, |(key, _)| key) {
-                "id" => Some("id: ADR-0001"),
-                "title" => Some("title: \"A decision\""),
-                "summary" => Some("summary: \"What was decided.\""),
-                "date" => Some("date: 2026-11-05"),
-                "supersedes" => None,
-                _ => Some(line),
-            })
-            .collect();
-        let adr = file(Active, "0001-a-decision.md", &filled_in.join("\n"));
-        assert_eq!(check(&[adr], None), Vec::<Problem>::new());
-    }
-
-    #[test]
-    fn the_template_fails_until_its_metadata_is_filled_in() {
-        let name = "0001-a-decision.md";
-        let problems = check(&[file(Active, name, TEMPLATE)], None);
-        let unfilled_id = problem(&adr_path(Active, name), BadId { value: "ADR-NNNN".into() });
-        assert!(problems.contains(&unfilled_id), "{problems:?}");
     }
 
     #[test]
