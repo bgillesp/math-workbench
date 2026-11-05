@@ -124,10 +124,6 @@ mod tests {
     use crate::adr::fixtures::{SAMPLE_TAGS, sample, sample_files, valid};
     use crate::adr::records::load;
 
-    /// The error for `--tags` without an attached value.
-    const TAGS_NOT_ATTACHED: &str = "`--tags` takes its value attached, as in \
-                                     `--tags=graph,wires`; `cargo xtask adr tags` lists the tags";
-
     fn parse(args: &[&str]) -> Result<Options, String> {
         parse_args(lexopt::Parser::from_args(args)).map_err(|err| err.to_string())
     }
@@ -144,6 +140,10 @@ mod tests {
     fn options_parse() {
         assert_eq!(parse(&[]), Ok(Options::default()));
         assert_eq!(
+            parse(&["--all", "--tags", "--verbose"]),
+            Ok(Options { all: true, grouping: Grouping::AllTags, verbose: true })
+        );
+        assert_eq!(
             parse(&["--all", "--tags=graph", "--verbose"]),
             Ok(Options { all: true, verbose: true, ..grouped(&["graph"]) })
         );
@@ -151,14 +151,14 @@ mod tests {
     }
 
     #[test]
-    fn tags_needs_an_attached_value() {
+    fn tags_values_must_be_attached() {
+        let message = "`graph` looks like a value for `--tags`; attach it as `--tags=graph`";
         for args in [
-            &["--tags"][..],
-            &["--tags", "graph"],
-            &["--tags", "--all"],
-            &["--all", "--tags"],
+            &["--tags", "graph"][..],
+            &["--all", "--tags", "graph"],
+            &["graph"],
         ] {
-            assert_eq!(parse(args), Err(TAGS_NOT_ATTACHED.to_string()), "{args:?}");
+            assert_eq!(parse(args), Err(message.to_string()), "{args:?}");
         }
     }
 
@@ -200,6 +200,62 @@ mod tests {
             Ok("- ADR-0002: Versioned project files (file-format)\n\
                 - ADR-0003: Wire types: checked on connect (graph/wires)\n\
                 - ADR-0005: Decision 5\n"
+                .to_string())
+        );
+    }
+
+    #[test]
+    fn tags_groups_by_every_tag() {
+        let options = Options { grouping: Grouping::AllTags, ..Options::default() };
+        assert_eq!(
+            render(&sample(), &options),
+            Ok("## file-format\n\n\
+                - ADR-0002: Versioned project files (file-format)\n\n\
+                ## graph\n\n\
+                - ADR-0003: Wire types: checked on connect (graph/wires)\n\n\
+                ## wires\n\n\
+                - ADR-0003: Wire types: checked on connect (graph/wires)\n"
+                .to_string())
+        );
+
+        let options = Options { all: true, grouping: Grouping::AllTags, verbose: false };
+        assert_eq!(
+            render(&sample(), &options),
+            Ok("## dynamic-typing\n\n\
+                - ADR-0001: Wires are dynamically typed (graph/dynamic-typing), superseded by \
+                ADR-0003\n\n\
+                ## file-format\n\n\
+                - ADR-0002: Versioned project files (file-format)\n\n\
+                ## graph\n\n\
+                - ADR-0001: Wires are dynamically typed (graph/dynamic-typing), superseded by \
+                ADR-0003\n\
+                - ADR-0003: Wire types: checked on connect (graph/wires)\n\n\
+                ## wires\n\n\
+                - ADR-0003: Wire types: checked on connect (graph/wires)\n"
+                .to_string())
+        );
+    }
+
+    #[test]
+    fn tags_combines_with_verbose() {
+        let options = Options { grouping: Grouping::AllTags, verbose: true, ..Options::default() };
+        assert_eq!(
+            render(&sample(), &options),
+            Ok("## file-format\n\n\
+                - ADR-0002: Versioned project files (file-format)\n  \
+                docs/architecture/decisions/active/0002-versioned-project-files.md\n  \
+                Project files carry a format version, and older versions are migrated when\n  \
+                loaded.\n\n\
+                ## graph\n\n\
+                - ADR-0003: Wire types: checked on connect (graph/wires)\n  \
+                docs/architecture/decisions/active/0003-wire-types-checked-on-connect.md\n  \
+                Every wire has a static type, and connecting two ports checks compatibility,\n  \
+                so a mistyped connection is rejected before anything is evaluated.\n\n\
+                ## wires\n\n\
+                - ADR-0003: Wire types: checked on connect (graph/wires)\n  \
+                docs/architecture/decisions/active/0003-wire-types-checked-on-connect.md\n  \
+                Every wire has a static type, and connecting two ports checks compatibility,\n  \
+                so a mistyped connection is rejected before anything is evaluated.\n"
                 .to_string())
         );
     }

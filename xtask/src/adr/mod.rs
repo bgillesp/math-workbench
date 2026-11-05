@@ -281,7 +281,7 @@ mod tests {
     #[test]
     fn usage_describes_the_remaining_subcommands() {
         let usage = usage();
-        assert!(usage.contains("list [--all] [--verbose] [--tags=<tags>]"), "{usage}");
+        assert!(usage.contains("list [--all] [--verbose] [--tags[=<tags>]]"), "{usage}");
         assert!(usage.contains("\n  tags\n"), "{usage}");
         for removed in ["\n  new ", "\n  print ", "ADR numbers can be given"] {
             assert!(!usage.contains(removed), "{removed:?} in {usage}");
