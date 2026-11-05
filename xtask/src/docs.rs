@@ -68,7 +68,7 @@ impl fmt::Display for ProblemKind {
         match self {
             Self::BadDesignName => f.write_str(
                 "design doc file names look like `0042-short-title.md`, where 0042 is the number \
-                 of the PR that implements it",
+                 of the PR that first adds it",
             ),
             Self::DuplicateDesignNumber { number, other } => {
                 write!(f, "number {number:04} is also used by {other}")

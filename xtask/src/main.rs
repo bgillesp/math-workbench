@@ -46,7 +46,7 @@ impl Command {
         match self {
             Self::Adr => "list, print, and create ADRs (`cargo xtask adr --help` for more)",
             Self::CheckDocs => "ADRs, design docs, and relative links are consistent",
-            Self::CheckReady => "no branch notes, and every design doc is implemented",
+            Self::CheckReady => "no branch notes, and every design doc is accepted or implemented",
             Self::Doctor => "warn about missing tools or a broken skills symlink",
         }
     }
