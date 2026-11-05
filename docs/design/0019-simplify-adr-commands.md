@@ -333,13 +333,15 @@ The common edits then look like this:
 
 | Command | Prints |
 |---|---|
-| `adr list [--all] [--verbose] [--tags=<tags>]` | The ADRs in force by number, with their tags |
+| `adr list [--all] [--verbose] [--tags[=<tags>]]` | The ADRs in force by number, with their tags |
 | `adr tags` | Every tag in `tags.yaml`, one per line, sorted |
 
-`--all` adds the superseded ADRs, each noting its successors. `--tags=graph,wires` groups the ADRs
-under those tags, in the order given, with an ADR appearing under each of its tags, as it does
-today. `--verbose` adds each ADR's path, which replaces the lookup `adr print` provided, and its
-summary, wrapped at 80 columns with a two-space indent as it is today:
+`--all` adds the superseded ADRs, each noting its successors. `--tags` groups the ADRs under every
+tag of the ADRs shown, alphabetically, so a tag used only by superseded ADRs appears only with
+`--all`. `--tags=graph,wires` groups them under just those tags, in the order given. In both, an ADR
+appears under each of its tags, as it does today. `--verbose` adds each ADR's path, which replaces
+the lookup `adr print` provided, and its summary, wrapped at 80 columns with a two-space indent as
+it is today:
 
 ```markdown
 ## graph
@@ -353,20 +355,20 @@ summary, wrapped at 80 columns with a two-space indent as it is today:
 With no ADRs, `adr list` and `adr tags` print "None yet.", and a list with only superseded ADRs to
 leave out prints "None in force.", also as they do today.
 
-`--tags` always takes its value attached. A bare `--tags` is an error, and so is `--tags graph`,
-since the parser stops at the bare option. `adr list` doesn't print the existing tags in its errors,
-which point to `adr tags` instead:
+A value for `--tags` is always attached, since `--tags` can stand alone. `adr list` takes no other
+values, so any value it's given gets an error suggesting the attached form. An unknown tag's error
+points to `adr tags` rather than printing the existing tags:
 
 ```text
-error: `--tags` takes its value attached, as in `--tags=graph,wires`; `cargo xtask adr tags` lists the tags
+error: `graph` looks like a value for `--tags`; attach it as `--tags=graph`
 error: there's no tag `graphs`; `cargo xtask adr tags` lists the tags
 ```
 
-A few things go with the removed commands and options. One message covers both forms of the first
-error, so `detached_value` and the state that tracks a bare `--tags` go, along with the `UnknownTag`
-type and the all-tags grouping. Without `print` and `new --supersedes`, nothing parses ADR numbers
-from arguments. The call into git for the local date goes with `adr new`, since the author now
-writes the date.
+A few things go with the removed commands and options. With `new` gone, `adr list` is the only
+command that takes `--tags`, so the first error moves there, and it needs neither `detached_value`
+nor the state that tracked a bare `--tags`. The `UnknownTag` type goes too. Without `print` and
+`new --supersedes`, nothing parses ADR numbers from arguments. The call into git for the local date
+goes with `adr new`, since the author now writes the date.
 
 `adr` also gains a recipe, `just adr <args>`. It had none because `just` splits a quoted title, and
 no argument contains spaces now. `cargo xtask adr` still works, and the docs that use it can stay.
@@ -374,11 +376,10 @@ The usage text points to the template, for anyone looking for `adr new`.
 
 ### Effect on #4
 
-`cargo xtask context` plans to use `adr list --tags --verbose` for its baseline, and bare `--tags`
-no longer exists. `adr list --verbose` and `adr tags` give the same information more compactly,
-since each entry names its tags. For named tags, `context` can call `records::load`, filter, and
-read each `Adr`'s file, since `Adr` no longer holds the text. A structural problem on a branch will
-stop `context` as it stops `adr list`. The issue's description should be updated once this lands.
+`cargo xtask context` plans to use `adr list --tags --verbose` for its baseline, which still works,
+though an ADR with no tags doesn't appear in it. For named tags, `context` can call `records::load`,
+filter, and read each `Adr`'s file, since `Adr` no longer holds the text. A structural problem on a
+branch will stop `context` as it stops `adr list`.
 
 ### Implementation notes
 
@@ -419,8 +420,6 @@ its structure. The second PR does port a few things the third replaces, such as 
   views. The steps live in the template, and the guide links to them and keeps the reasoning.
 - `docs/guides/repository.md`: the `adr` row, the description of `check-docs`, and the exception
   for `adr` under "Commands", which goes.
-- `docs/guides/development.md` and `docs/README.md`: `adr list --tags` becomes `adr tags`, then
-  `adr list --tags=<tags>`.
 - `docs/architecture/overview.md`: `adr` no longer prints or creates ADRs.
 - `docs/glossary.md`: not every ADR has tags.
 - `xtask/src/main.rs`: the crate docs and the `adr` summary.
@@ -455,11 +454,15 @@ new ADR that isn't finished yet, and a structural problem is worth fixing first.
 one run, but reports false problems whenever a file fails to parse, as described under "Loading".
 Suppressing them is the tracking this design removes.
 
-**Forwarding bare `--tags` to `adr tags`.** It's friendlier for someone who tries `--tags` alone,
-but gives one output two spellings.
+**Making bare `--tags` an error.** An earlier version of this design did this, leaving the list of
+tags to `adr tags`, but grouping every ADR by tag is a useful overview, #4 plans to use it, and it
+costs only a few lines.
 
-**Accepting `--tags a,b` as well as `--tags=a,b`.** Now that bare `--tags` is an error, `lexopt`'s
-`value()` could accept both, but one spelling is simpler to document, and it's the current rule.
+**Forwarding bare `--tags` to `adr tags`.** It's friendlier for someone who wants the list of tags,
+but gives one output two spellings, and loses the overview.
+
+**Accepting `--tags a,b` as well as `--tags=a,b`.** Since `--tags` can stand alone, the parser can't
+tell whether a following value belongs to it, so a value has to be attached.
 
 **A flat list for `--tags=`, rather than grouping under each tag.** An earlier draft did this, so an
 ADR with two tags would appear once. The grouped output is already there and does the job.
@@ -477,10 +480,11 @@ Commands, in the first PR:
 
 - `adr list` prints the ADRs in force by number, each with its tags;
 - `--all` adds the superseded ADRs, each with its successors;
+- `--tags` groups the ADRs under every tag of the ADRs shown, alphabetically, with an ADR appearing
+  under each of its tags, and combines with `--all` and `--verbose`;
 - `--tags=a,b` groups the ADRs under those tags, in the order given, with an ADR appearing under
   each of its tags, and combines with `--all` and `--verbose`;
-- a bare `--tags`, and `--tags a` with a space, fail with a message giving the attached form and
-  pointing to `adr tags`;
+- `--tags a` with a space fails with a message giving the attached form;
 - `--tags=` naming a tag not in `tags.yaml` fails with a message pointing to `adr tags`, without
   listing the tags;
 - `--verbose` adds each ADR's path, and its summary wrapped at 80 columns, both with a two-space
