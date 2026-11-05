@@ -1,9 +1,8 @@
-//! `adr list`, the ADRs by number or grouped by tag, and `adr tags`, every tag on its own line.
+//! `adr list`: the ADRs by number, or grouped by tag.
 
 use std::collections::BTreeSet;
-use std::fmt::Write;
 
-use super::records::{Adr, Records, Tags};
+use super::records::{Adr, Records};
 use super::{ids, list_arg};
 
 /// The column summaries are wrapped at with `--verbose`.
@@ -65,14 +64,6 @@ pub(super) fn parse_args(mut parser: lexopt::Parser) -> Result<Options, lexopt::
     Ok(options)
 }
 
-/// Parses the arguments after `adr tags`, which takes none.
-pub(super) fn parse_tags_args(mut parser: lexopt::Parser) -> Result<(), lexopt::Error> {
-    match parser.next()? {
-        Some(arg) => Err(arg.unexpected()),
-        None => Ok(()),
-    }
-}
-
 /// The `adr list` output for `records`, or an error naming a tag that doesn't exist.
 pub(super) fn render(records: &Records, options: &Options) -> Result<String, String> {
     if records.adrs.is_empty() {
@@ -120,18 +111,6 @@ pub(super) fn render(records: &Records, options: &Options) -> Result<String, Str
         }
     }
     Ok(groups.join("\n"))
-}
-
-/// The `adr tags` output for `tags`.
-pub(super) fn render_tags(tags: &Tags) -> String {
-    if tags.is_empty() {
-        return "None yet.\n".to_string();
-    }
-    let mut output = String::new();
-    for tag in tags.keys() {
-        let _ = writeln!(output, "{tag}");
-    }
-    output
 }
 
 /// An ADR's entry in the list, noting its `successors` if it's superseded, with its path and
@@ -355,21 +334,5 @@ mod tests {
         assert_eq!(wrap("aaaa bbbb cccc dddd", 20, "  "), "  aaaa bbbb cccc\n  dddd");
         assert_eq!(wrap("a supercalifragilistic b", 12, "  "), "  a\n  supercalifragilistic\n  b");
         assert_eq!(wrap("spaced  out\n  text", SUMMARY_WIDTH, "  "), "  spaced out text");
-    }
-
-    #[test]
-    fn no_arguments_are_taken_by_adr_tags() {
-        assert!(parse_tags_args(lexopt::Parser::from_args(Vec::<&str>::new())).is_ok());
-        assert!(parse_tags_args(lexopt::Parser::from_args(["extra"])).is_err());
-    }
-
-    #[test]
-    fn each_tag_prints_once_on_its_own_line_sorted() {
-        assert_eq!(render_tags(&sample().tags), "dynamic-typing\nfile-format\ngraph\nwires\n");
-    }
-
-    #[test]
-    fn tags_says_none_yet_without_adrs() {
-        assert_eq!(render_tags(&Tags::new()), "None yet.\n");
     }
 }

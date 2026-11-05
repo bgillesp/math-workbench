@@ -9,14 +9,15 @@
 //! Loading has two stages. `records` reads the ADRs and `tags.yaml` into `Records` through the
 //! structural checks, returning every record or every structural problem, using `yaml` for the
 //! flat subset of YAML they share. `check` then runs the consistency checks over those records,
-//! for `check-docs`. `list` implements the subcommands, with their arguments and output, and
-//! needs only the first stage.
+//! for `check-docs`. `list` and `tags` each implement one subcommand, with its arguments and
+//! output, and neither needs the consistency checks.
 
 mod check;
 #[cfg(test)]
 mod fixtures;
 mod list;
 mod records;
+mod tags;
 mod yaml;
 
 use std::ffi::OsString;
@@ -110,7 +111,7 @@ const SUBCOMMANDS: [Subcommand; 2] = [
         name: "tags",
         args: "",
         summary: "every tag, one per line",
-        parse: |parser| list::parse_tags_args(parser).map(|()| Command::Tags),
+        parse: |parser| tags::parse_args(parser).map(|()| Command::Tags),
     },
 ];
 
@@ -165,7 +166,7 @@ fn execute(root: &Path, command: Command) -> Result<String, Vec<String>> {
             let tags = records::load_tags(root)
                 .map_err(|err| vec![err.to_string()])?
                 .map_err(|problems| messages(&problems))?;
-            list::render_tags(&tags)
+            tags::render(&tags)
         },
         Command::Help => format!("{}\n", usage()),
     })

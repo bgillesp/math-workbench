@@ -390,12 +390,12 @@ structural problem on a branch will stop `context` as it stops `adr list`.
 | `mod.rs` | 288 + 41 | 100 + 15 | Dispatch, usage, `Dir`, ids and names |
 | `records.rs` | 312 + 102 | 150 + 100 | `load`, `load_tags`, the structural checks |
 | `check.rs` | 303 + 302 | 170 + 140 | `Problem`, the consistency checks |
-| `list.rs` | 158 + 185 | 150 + 180 | `adr list` and `adr tags` |
+| `list.rs` | 158 + 185 | 150 + 180 | `adr list` |
 | `yaml.rs` | 131 + 69 | 75 + 50 | Flat YAML entries and their errors |
 | `fixtures.rs` | 161 | 50 | Sample ADRs, one scratch directory helper |
 | `new.rs` | 368 + 221 | Removed | |
 | `print.rs` | 53 + 39 | Removed | |
-| `tags.rs` | 33 + 24 | Removed | Moves into `list.rs` |
+| `tags.rs` | 33 + 24 | 25 + 20 | `adr tags` |
 
 That's from 2,790 lines to about 1,200. `AdrFile` goes, since nothing keeps a file's text after
 parsing it. `docs::front_matter` stays as it is, since design docs have a single `status` field.
@@ -406,7 +406,7 @@ built:
 | PR | Changes | Changed lines |
 |---|---|---|
 | 1. Commands | Removes `new.rs` and `print.rs`, simplifies `adr list` and `adr tags`, adds the recipe, and drops the requirement that every ADR has tags. Rewrites the template's instructions for the current format. This PR numbers the design doc | About 1,300 besides this doc, almost all deletions |
-| 2. Loading | `load` and `load_tags`, `check` over `Records`, and the split between structural and consistency checks. `adr list` and `adr tags` fail on structural problems, and `adr tags` moves into `list.rs`. Passes and fails `check-docs` on the same files as before | About 800, half of it tests moving from `check.rs` to `records.rs` |
+| 2. Loading | `load` and `load_tags`, `check` over `Records`, and the split between structural and consistency checks. `adr list` and `adr tags` fail on structural problems. Passes and fails `check-docs` on the same files as before | About 800, half of it tests moving from `check.rs` to `records.rs` |
 | 3. Format | The new `yaml.rs` rules, the fields that depend on them, and `tags.yaml` keyed by tag, with the template and guide updated. Closes #16 | About 500 |
 
 Loading goes before the format so the format change touches one reading path rather than both.
