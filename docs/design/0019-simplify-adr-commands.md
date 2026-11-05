@@ -338,10 +338,12 @@ The common edits then look like this:
 
 `--all` adds the superseded ADRs, each noting its successors. `--tags` groups the ADRs under every
 tag of the ADRs shown, alphabetically, so a tag used only by superseded ADRs appears only with
-`--all`. `--tags=graph,wires` groups them under just those tags, in the order given. In both, an ADR
-appears under each of its tags, as it does today. `--verbose` adds each ADR's path, which replaces
-the lookup `adr print` provided, and its summary, wrapped at 80 columns with a two-space indent as
-it is today:
+`--all`. Any ADRs shown with no tags come last under a `(no tags)` heading, so the grouping leaves
+no ADR out, and the heading can't clash with a tag, which can't contain parentheses.
+`--tags=graph,wires` groups them under just those tags, in the order given, without that heading. In
+both, an ADR appears under each of its tags, as it does today. `--verbose` adds each ADR's path,
+which replaces the lookup `adr print` provided, and its summary, wrapped at 80 columns with a
+two-space indent as it is today:
 
 ```markdown
 ## graph
@@ -377,9 +379,9 @@ The usage text points to the template, for anyone looking for `adr new`.
 ### Effect on #4
 
 `cargo xtask context` plans to use `adr list --tags --verbose` for its baseline, which still works,
-though an ADR with no tags doesn't appear in it. For named tags, `context` can call `records::load`,
-filter, and read each `Adr`'s file, since `Adr` no longer holds the text. A structural problem on a
-branch will stop `context` as it stops `adr list`.
+now with any ADRs that have no tags under `(no tags)`. For named tags, `context` can call
+`records::load`, filter, and read each `Adr`'s file, since `Adr` no longer holds the text. A
+structural problem on a branch will stop `context` as it stops `adr list`.
 
 ### Implementation notes
 
@@ -458,6 +460,10 @@ Suppressing them is the tracking this design removes.
 tags to `adr tags`, but grouping every ADR by tag is a useful overview, #4 plans to use it, and it
 costs only a few lines.
 
+**Leaving ADRs with no tags out of `--tags`.** This is slightly simpler, and the guide asks for at
+least one tag by convention, but nothing enforces that, so the grouped view could be silently
+incomplete, which is what `adr list` otherwise refuses to show.
+
 **Forwarding bare `--tags` to `adr tags`.** It's friendlier for someone who wants the list of tags,
 but gives one output two spellings, and loses the overview.
 
@@ -482,6 +488,8 @@ Commands, in the first PR:
 - `--all` adds the superseded ADRs, each with its successors;
 - `--tags` groups the ADRs under every tag of the ADRs shown, alphabetically, with an ADR appearing
   under each of its tags, and combines with `--all` and `--verbose`;
+- `--tags` lists any ADRs shown with no tags last, under a `(no tags)` heading, which `--tags=a,b`
+  doesn't add;
 - `--tags=a,b` groups the ADRs under those tags, in the order given, with an ADR appearing under
   each of its tags, and combines with `--all` and `--verbose`;
 - `--tags a` with a space fails with a message giving the attached form;

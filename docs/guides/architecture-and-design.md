@@ -80,8 +80,8 @@ an ADR take the same number, so the second to merge fails the check once it's up
 `cargo xtask adr` also prints views of the ADRs:
 
 - `adr list` lists the ADRs in force by number, with their tags. `--all` adds the superseded ones,
-  `--tags` groups them by tag, `--tags=graph,wires` groups them under just those tags, and
-  `--verbose` adds each path and summary.
+  `--tags` groups them by tag, with any that have no tags under `(no tags)`, `--tags=graph,wires`
+  groups them under just those tags, and `--verbose` adds each path and summary.
 - `adr tags` lists every tag.
 
 ADRs and design docs cite ADRs by id in prose, as in `ADR-0003`, rather than with links, since a
