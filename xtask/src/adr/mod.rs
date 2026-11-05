@@ -289,7 +289,6 @@ fn split_tags(value: &str) -> impl Iterator<Item = &str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adr::fixtures::new_args;
 
     fn parse(args: &[&str]) -> Result<Command, String> {
         parse_args(lexopt::Parser::from_args(args)).map_err(|err| err.to_string())
@@ -302,11 +301,6 @@ mod tests {
             Ok(Command::List(list::Options { all: true, ..list::Options::default() }))
         );
         assert_eq!(parse(&["tags"]), Ok(Command::Tags));
-        assert_eq!(parse(&["print", "3"]), Ok(Command::Print(vec![3])));
-        assert_eq!(
-            parse(&["new", "Title", "--tags=graph"]),
-            Ok(Command::New(new_args("Title", &["graph"], &[])))
-        );
     }
 
     #[test]
@@ -314,6 +308,38 @@ mod tests {
         assert!(parse(&[]).is_err());
         assert!(parse(&["index"]).is_err());
         assert!(parse(&["active"]).is_err());
+    }
+
+    #[test]
+    fn new_and_print_are_unknown_subcommands() {
+        assert_eq!(
+            parse(&["new", "Title", "--tags=graph"]),
+            Err("unknown subcommand `new`".to_string())
+        );
+        assert_eq!(parse(&["print", "3"]), Err("unknown subcommand `print`".to_string()));
+    }
+
+    #[test]
+    fn usage_describes_the_remaining_subcommands() {
+        let usage = usage();
+        assert!(usage.contains("list [--all] [--verbose] [--tags=<tags>]"), "{usage}");
+        assert!(usage.contains("\n  tags\n"), "{usage}");
+        for removed in ["\n  new ", "\n  print ", "ADR numbers can be given"] {
+            assert!(!usage.contains(removed), "{removed:?} in {usage}");
+        }
+    }
+
+    #[test]
+    fn the_just_recipe_passes_its_arguments_through() {
+        let output = std::process::Command::new("just")
+            .args(["--dry-run", "adr", "list", "--tags=graph,wires"])
+            .current_dir(crate::workspace_root())
+            .output()
+            .expect("`just` runs this repository's recipes, so it should be installed");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stderr).trim(),
+            "cargo xtask adr list --tags=graph,wires"
+        );
     }
 
     #[test]

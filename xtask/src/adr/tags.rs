@@ -43,11 +43,8 @@ mod tests {
     }
 
     #[test]
-    fn each_tag_shows_its_adrs_in_force() {
-        assert_eq!(
-            render(&sample()),
-            "- dynamic-typing (0)\n- file-format (1)\n- graph (1)\n- wires (1)\n"
-        );
+    fn each_tag_prints_once_on_its_own_line_sorted() {
+        assert_eq!(render(&sample()), "dynamic-typing\nfile-format\ngraph\nwires\n");
     }
 
     #[test]

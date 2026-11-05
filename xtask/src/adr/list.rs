@@ -159,36 +159,50 @@ fn wrap(text: &str, width: usize, indent: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adr::Dir::Active;
+    use crate::adr::Dir::{Active, Superseded};
     use crate::adr::fixtures::{SAMPLE_TAGS, sample, sample_files, valid};
     use crate::adr::records::load;
 
+    /// The error for `--tags` without an attached value.
+    const TAGS_NOT_ATTACHED: &str = "`--tags` takes its value attached, as in \
+                                     `--tags=graph,wires`; `cargo xtask adr tags` lists the tags";
+
     fn parse(args: &[&str]) -> Result<Options, String> {
         parse_args(lexopt::Parser::from_args(args)).map_err(|err| err.to_string())
+    }
+
+    /// Options that group the entries under `tags`.
+    fn grouped(tags: &[&str]) -> Options {
+        Options {
+            grouping: Grouping::Tags(tags.iter().map(ToString::to_string).collect()),
+            ..Options::default()
+        }
     }
 
     #[test]
     fn options_parse() {
         assert_eq!(parse(&[]), Ok(Options::default()));
         assert_eq!(
-            parse(&["--all", "--tags", "--verbose"]),
-            Ok(Options { all: true, grouping: Grouping::AllTags, verbose: true })
+            parse(&["--all", "--tags=graph", "--verbose"]),
+            Ok(Options { all: true, verbose: true, ..grouped(&["graph"]) })
         );
-        assert_eq!(
-            parse(&["--tags=wires,graph"]),
-            Ok(Options {
-                grouping: Grouping::Tags(vec!["wires".into(), "graph".into()]),
-                ..Options::default()
-            })
-        );
+        assert_eq!(parse(&["--tags=wires,graph"]), Ok(grouped(&["wires", "graph"])));
+    }
+
+    #[test]
+    fn tags_needs_an_attached_value() {
+        for args in [
+            &["--tags"][..],
+            &["--tags", "graph"],
+            &["--tags", "--all"],
+            &["--all", "--tags"],
+        ] {
+            assert_eq!(parse(args), Err(TAGS_NOT_ATTACHED.to_string()), "{args:?}");
+        }
     }
 
     #[test]
     fn bad_options_fail() {
-        assert_eq!(
-            parse(&["--tags", "graph"]),
-            Err("`graph` looks like a value for `--tags`; attach it as `--tags=graph`".to_string())
-        );
         assert_eq!(parse(&["--tags="]), Err("`--tags=` needs at least one tag".to_string()));
         assert!(parse(&["--width=100"]).is_err());
     }
@@ -230,45 +244,9 @@ mod tests {
     }
 
     #[test]
-    fn tags_groups_by_every_tag() {
-        let options = Options { grouping: Grouping::AllTags, ..Options::default() };
+    fn tags_groups_by_those_tags_in_order() {
         assert_eq!(
-            render(&sample(), &options),
-            Ok("## file-format\n\n\
-                - ADR-0002: Versioned project files (file-format)\n\n\
-                ## graph\n\n\
-                - ADR-0003: Wire types: checked on connect (graph/wires)\n\n\
-                ## wires\n\n\
-                - ADR-0003: Wire types: checked on connect (graph/wires)\n"
-                .to_string())
-        );
-
-        let options = Options { all: true, grouping: Grouping::AllTags, verbose: false };
-        assert_eq!(
-            render(&sample(), &options),
-            Ok("## dynamic-typing\n\n\
-                - ADR-0001: Wires are dynamically typed (graph/dynamic-typing), superseded by \
-                ADR-0003\n\n\
-                ## file-format\n\n\
-                - ADR-0002: Versioned project files (file-format)\n\n\
-                ## graph\n\n\
-                - ADR-0001: Wires are dynamically typed (graph/dynamic-typing), superseded by \
-                ADR-0003\n\
-                - ADR-0003: Wire types: checked on connect (graph/wires)\n\n\
-                ## wires\n\n\
-                - ADR-0003: Wire types: checked on connect (graph/wires)\n"
-                .to_string())
-        );
-    }
-
-    #[test]
-    fn tags_with_values_groups_by_those_tags_in_order() {
-        let options = Options {
-            grouping: Grouping::Tags(vec!["wires".into(), "file-format".into()]),
-            ..Options::default()
-        };
-        assert_eq!(
-            render(&sample(), &options),
+            render(&sample(), &grouped(&["wires", "file-format"])),
             Ok("## wires\n\n\
                 - ADR-0003: Wire types: checked on connect (graph/wires)\n\n\
                 ## file-format\n\n\
@@ -278,50 +256,87 @@ mod tests {
     }
 
     #[test]
-    fn unknown_tags_fail() {
-        let options =
-            Options { grouping: Grouping::Tags(vec!["graphs".into()]), ..Options::default() };
-        let error = UnknownTag {
-            tag: "graphs".into(),
-            existing: vec![
-                "dynamic-typing".into(),
-                "file-format".into(),
-                "graph".into(),
-                "wires".into(),
-            ],
-        };
+    fn an_adr_appears_under_each_of_its_tags() {
         assert_eq!(
-            error.to_string(),
-            "no ADR has the tag `graphs`; the tags are dynamic-typing, file-format, graph, wires"
+            render(&sample(), &grouped(&["wires", "graph"])),
+            Ok("## wires\n\n\
+                - ADR-0003: Wire types: checked on connect (graph/wires)\n\n\
+                ## graph\n\n\
+                - ADR-0003: Wire types: checked on connect (graph/wires)\n"
+                .to_string())
         );
-        assert_eq!(render(&sample(), &options), Err(error));
     }
 
     #[test]
-    fn verbose_adds_wrapped_summaries() {
+    fn tags_combines_with_all() {
+        assert_eq!(
+            render(&sample(), &Options { all: true, ..grouped(&["graph"]) }),
+            Ok("## graph\n\n\
+                - ADR-0001: Wires are dynamically typed (graph/dynamic-typing), superseded by \
+                ADR-0003\n\
+                - ADR-0003: Wire types: checked on connect (graph/wires)\n"
+                .to_string())
+        );
+    }
+
+    #[test]
+    fn a_tag_with_only_superseded_adrs_says_none_in_force() {
+        assert_eq!(
+            render(&sample(), &grouped(&["dynamic-typing"])),
+            Ok("## dynamic-typing\n\nNone in force.\n".to_string())
+        );
+    }
+
+    #[test]
+    fn unknown_tags_point_to_adr_tags() {
+        let message = "there's no tag `graphs`; `cargo xtask adr tags` lists the tags";
+        for tags in [&["graphs"][..], &["graph", "graphs"]] {
+            assert_eq!(
+                render(&sample(), &grouped(tags)).unwrap_err().to_string(),
+                message,
+                "{tags:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn verbose_adds_paths_and_wrapped_summaries() {
         let options = Options { verbose: true, ..Options::default() };
         assert_eq!(
             render(&sample(), &options),
             Ok("- ADR-0002: Versioned project files (file-format)\n  \
+                docs/architecture/decisions/active/0002-versioned-project-files.md\n  \
                 Project files carry a format version, and older versions are migrated when\n  \
                 loaded.\n\
                 - ADR-0003: Wire types: checked on connect (graph/wires)\n  \
+                docs/architecture/decisions/active/0003-wire-types-checked-on-connect.md\n  \
                 Every wire has a static type, and connecting two ports checks compatibility,\n  \
                 so a mistyped connection is rejected before anything is evaluated.\n"
                 .to_string())
         );
+    }
 
-        let options = Options {
-            grouping: Grouping::Tags(vec!["file-format".into()]),
-            verbose: true,
-            ..Options::default()
-        };
+    #[test]
+    fn verbose_combines_with_tags_and_all() {
         assert_eq!(
-            render(&sample(), &options),
+            render(&sample(), &Options { verbose: true, ..grouped(&["file-format"]) }),
             Ok("## file-format\n\n\
                 - ADR-0002: Versioned project files (file-format)\n  \
+                docs/architecture/decisions/active/0002-versioned-project-files.md\n  \
                 Project files carry a format version, and older versions are migrated when\n  \
                 loaded.\n"
+                .to_string())
+        );
+        assert_eq!(
+            render(
+                &sample(),
+                &Options { all: true, verbose: true, ..grouped(&["dynamic-typing"]) }
+            ),
+            Ok("## dynamic-typing\n\n\
+                - ADR-0001: Wires are dynamically typed (graph/dynamic-typing), superseded by \
+                ADR-0003\n  \
+                docs/architecture/decisions/superseded/0001-wires-are-dynamically-typed.md\n  \
+                Wires carry values of any type, checked when a tile reads them.\n"
                 .to_string())
         );
     }
@@ -329,6 +344,12 @@ mod tests {
     #[test]
     fn list_says_none_yet_without_adrs() {
         assert_eq!(render(&[], &Options::default()), Ok("None yet.\n".to_string()));
+    }
+
+    #[test]
+    fn list_says_none_in_force_with_only_superseded_adrs() {
+        let adrs = load(vec![valid(Superseded, 1, &[])], None).adrs;
+        assert_eq!(render(&adrs, &Options::default()), Ok("None in force.\n".to_string()));
     }
 
     #[test]
