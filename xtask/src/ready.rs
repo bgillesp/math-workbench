@@ -1,7 +1,8 @@
 //! `check-ready`: the branch is ready to merge into `main`.
 //!
 //! `docs/wip/` is empty or missing, so branch notes don't reach `main`, and every design doc is
-//! `implemented`, since a design doc is frozen once its PR merges.
+//! `accepted` or `implemented`, so an unapproved design doesn't either. A doc stays `accepted`
+//! until the PR that completes its implementation, which this check can't identify.
 
 use std::fmt;
 use std::fs;
@@ -12,13 +13,17 @@ use crate::docs::{self, DESIGN_DIR};
 
 const WIP_DIR: &str = "docs/wip";
 
+/// The design doc statuses that can merge into `main`. An `accepted` doc's implementation may
+/// still be under way, across several PRs.
+const MERGEABLE_STATUSES: &[&str] = &["accepted", "implemented"];
+
 /// A way the branch isn't ready to merge.
 #[derive(Debug, PartialEq, Eq)]
 enum Problem {
     /// A file named `name` is in `docs/wip/`.
     BranchNotes { name: String },
-    /// The design doc named `name` has a status other than `implemented`, or none.
-    DesignNotImplemented { name: String, status: Option<String> },
+    /// The design doc named `name` has a status other than `accepted` or `implemented`, or none.
+    DesignNotAccepted { name: String, status: Option<String> },
 }
 
 impl fmt::Display for Problem {
@@ -29,15 +34,15 @@ impl fmt::Display for Problem {
                 "{WIP_DIR}/{name}: move branch notes to their permanent homes before merge \
                  (see docs/guides/development.md#branch-notes)"
             ),
-            Self::DesignNotImplemented { name, status: Some(status) } => write!(
+            Self::DesignNotAccepted { name, status: Some(status) } => write!(
                 f,
-                "{DESIGN_DIR}/{name}: status is `{status}`; revise the doc to describe what was \
-                 built and set it to `implemented` before merge"
+                "{DESIGN_DIR}/{name}: status is `{status}`; a human developer must accept the \
+                 design before merge (status `accepted` or `implemented`)"
             ),
-            Self::DesignNotImplemented { name, status: None } => write!(
+            Self::DesignNotAccepted { name, status: None } => write!(
                 f,
-                "{DESIGN_DIR}/{name}: no status; revise the doc to describe what was built and \
-                 set it to `implemented` before merge"
+                "{DESIGN_DIR}/{name}: no status; a human developer must accept the design before \
+                 merge (status `accepted` or `implemented`)"
             ),
         }
     }
@@ -62,8 +67,8 @@ fn check(notes: &[String], design_docs: &[(String, String)]) -> Vec<Problem> {
         notes.iter().map(|name| Problem::BranchNotes { name: name.clone() }).collect();
     for (name, text) in design_docs {
         let status = docs::front_matter(text).and_then(|fields| fields.get("status").copied());
-        if status != Some("implemented") {
-            problems.push(Problem::DesignNotImplemented {
+        if !status.is_some_and(|s| MERGEABLE_STATUSES.contains(&s)) {
+            problems.push(Problem::DesignNotAccepted {
                 name: name.clone(),
                 status: status.map(str::to_string),
             });
@@ -82,7 +87,10 @@ mod tests {
 
     #[test]
     fn ready_branch_passes() {
-        let design_docs = [design_doc("0002-conventions.md", "implemented")];
+        let design_docs = [
+            design_doc("0002-conventions.md", "implemented"),
+            design_doc("0004-accepted.md", "accepted"),
+        ];
         assert_eq!(check(&[], &design_docs), Vec::<Problem>::new());
     }
 
@@ -99,7 +107,7 @@ mod tests {
     }
 
     #[test]
-    fn unimplemented_design_docs_fail() {
+    fn unaccepted_design_docs_fail() {
         let design_docs = [
             design_doc("0002-conventions.md", "implemented"),
             design_doc("0003-draft.md", "draft"),
@@ -109,15 +117,11 @@ mod tests {
         assert_eq!(
             check(&[], &design_docs),
             [
-                Problem::DesignNotImplemented {
+                Problem::DesignNotAccepted {
                     name: "0003-draft.md".into(),
                     status: Some("draft".into()),
                 },
-                Problem::DesignNotImplemented {
-                    name: "0004-accepted.md".into(),
-                    status: Some("accepted".into()),
-                },
-                Problem::DesignNotImplemented { name: "0005-no-status.md".into(), status: None },
+                Problem::DesignNotAccepted { name: "0005-no-status.md".into(), status: None },
             ]
         );
     }
@@ -130,19 +134,19 @@ mod tests {
              docs/guides/development.md#branch-notes)"
         );
         assert_eq!(
-            Problem::DesignNotImplemented {
+            Problem::DesignNotAccepted {
                 name: "0003-draft.md".into(),
                 status: Some("draft".into()),
             }
             .to_string(),
-            "docs/design/0003-draft.md: status is `draft`; revise the doc to describe what was \
-             built and set it to `implemented` before merge"
+            "docs/design/0003-draft.md: status is `draft`; a human developer must accept the \
+             design before merge (status `accepted` or `implemented`)"
         );
         assert_eq!(
-            Problem::DesignNotImplemented { name: "0005-no-status.md".into(), status: None }
+            Problem::DesignNotAccepted { name: "0005-no-status.md".into(), status: None }
                 .to_string(),
-            "docs/design/0005-no-status.md: no status; revise the doc to describe what was built \
-             and set it to `implemented` before merge"
+            "docs/design/0005-no-status.md: no status; a human developer must accept the design \
+             before merge (status `accepted` or `implemented`)"
         );
     }
 }

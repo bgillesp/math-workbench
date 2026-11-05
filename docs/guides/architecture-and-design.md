@@ -96,6 +96,7 @@ approval of a design document which elaborates on the details and decisions of t
 implemented, and defines the acceptance criteria for the resulting code changes, from which concrete
 tests are derived.  These design documents provide significant context outside of the code changes
 themselves which may be useful to know for future development in the same region of the codebase,
-and so are preserved for reference.  Design documents are numbered by the PR that implements them,
-and are revised until it merges so that they describe the problem and the solution as built. They're
-frozen from then on.
+and so are preserved for reference.  Design documents are numbered by the PR that first adds them,
+and are revised until their implementation is complete, which may take several PRs, so that they
+describe the problem and the solution as built. The PR that completes the implementation sets their
+status to `implemented`, and they're frozen from then on.

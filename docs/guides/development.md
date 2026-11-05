@@ -59,8 +59,9 @@ looks wrong, stop and raise it. Fix lint warnings rather than allowing them, and
 lints, CI, or repository checks to get a change through (see the
 [repository guide](repository.md#lints-formatting-and-unsafe)).
 
-4. **Document.** Update the architecture overview, glossary, and crate docs. Set the design doc to
-`implemented`. Empty the branch notes in `docs/wip/`.
+4. **Document.** Update the architecture overview, glossary, and crate docs. If this PR completes
+the design doc's implementation, set the doc to `implemented`. Empty the branch notes in
+`docs/wip/`.
 
 5. **Merge.** Mark the PR ready for review. It goes through CI, an agent review pass, and human
 review, and is then squash-merged with a [commit message](#commit-messages) written for the log.
@@ -69,8 +70,12 @@ The design doc, the PR description, and the issue describe the problem and its s
 finally stand, so keep revising them until the PR merges, as implementation and review turn things
 up. A short note on an approach that was tried and dropped can go in the design doc or the PR
 description. Changes to the design's decisions or acceptance criteria, and to approved tests, need
-a human developer's approval, since the tests are what the work has to satisfy. The design doc is
-frozen once the PR merges.
+a human developer's approval, since the tests are what the work has to satisfy.
+
+A design doc's implementation can span several PRs. The doc can merge as `accepted`, and later PRs
+keep revising it, under the same approval rule. The PR that completes the implementation sets it to
+`implemented`, and the doc is frozen from then on. Until then, it can describe code that isn't built
+yet, which isn't a mismatch. [Statuses](../README.md#statuses) covers a design dropped partway.
 
 ## Testing
 
@@ -180,7 +185,8 @@ merge only once they approve it, with `gh pr merge <N> --squash --subject <subje
 - Living docs are updated: the architecture overview, glossary, crate docs, and guides, as the
   change requires.
 - `docs/wip/` is empty.
-- The design doc describes what was built, and its status is `implemented` (major changes).
+- The design doc matches what's been built so far, and its status is `implemented` if this PR
+  completes the implementation (major changes).
 - Any new dependency, including one between workspace crates, and any `unsafe` code is justified
   in the PR.
 

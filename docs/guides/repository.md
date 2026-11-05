@@ -66,7 +66,7 @@ Every command is a recipe in the [justfile](../../justfile).
 | `just ci` | `check`, then `cargo xtask check-ready` |
 
 Recipes cover the whole workspace with all features enabled. `just check` leaves out
-`check-ready`, since a branch in progress is expected to have branch notes and an unfinished
+`check-ready`, since a branch in progress is expected to have branch notes and a `draft`
 design doc, and neither `check` nor `ci` runs `just audit`, which has its own workflow (see
 [CI](#ci)). On Windows, `just` runs recipes in PowerShell.
 
@@ -134,7 +134,7 @@ in `.cargo/config.toml`, usually from a recipe. `cargo xtask --help` lists its c
 | Command | Does | Run by |
 |---|---|---|
 | `check-docs` | Checks ADRs, design docs, and relative links | `just check-repo` |
-| `check-ready` | Checks that `docs/wip/` is empty or missing, and every design doc is `implemented` | `just ci` |
+| `check-ready` | Checks that `docs/wip/` is empty or missing, and every design doc is `accepted` or `implemented` | `just ci` |
 | `doctor` | Warns about missing tools, or a broken skills symlink | `just setup` |
 | `adr` | Lists ADRs and their tags; `cargo xtask adr --help` lists its subcommands | `just adr` |
 
