@@ -273,8 +273,7 @@ mod tests {
     };
     use super::*;
     use crate::adr::Dir::{Active, Superseded};
-    use crate::adr::fixtures::{named, valid, with_front_matter};
-    use crate::adr::records::parse;
+    use crate::adr::fixtures::{named, records_from, valid, with_front_matter};
     use crate::adr::{AdrFile, adr_path};
 
     /// The file name of an ADR from `with_fields`.
@@ -291,8 +290,8 @@ mod tests {
     }
 
     /// The consistency problems with `files` and `tags`, which have to pass the structural checks.
-    fn problems_in(files: &[AdrFile], tags: Option<&str>) -> Vec<Problem> {
-        sorted(check(&parse(files, tags).unwrap()))
+    fn problems_in(files: &[AdrFile], tags: &str) -> Vec<Problem> {
+        sorted(check(&records_from(files, tags)))
     }
 
     /// ADR-0001, named `NAME`, with these values for its other fields.
@@ -314,7 +313,7 @@ mod tests {
             valid(Superseded, 2, &[1]),
             valid(Active, 3, &[2]),
         ];
-        assert_eq!(problems_in(&files, Some("ADR-0003: graph\n")), Vec::<Problem>::new());
+        assert_eq!(problems_in(&files, "ADR-0003: graph\n"), Vec::<Problem>::new());
     }
 
     #[test]
@@ -328,14 +327,14 @@ mod tests {
             "0001-short.txt",
         ] {
             assert_eq!(
-                problems_in(&[named(Active, name, 1)], None),
+                problems_in(&[named(Active, name, 1)], ""),
                 [problem(&adr_path(Active, name), NameMismatch { number: 1 })],
                 "{name}"
             );
         }
         // The same goes for `superseded/`.
         assert_eq!(
-            problems_in(&[named(Superseded, "notes.md", 1), valid(Active, 2, &[1])], None),
+            problems_in(&[named(Superseded, "notes.md", 1), valid(Active, 2, &[1])], ""),
             [problem(
                 &adr_path(Superseded, "notes.md"),
                 NameMismatch { number: 1 }
@@ -348,11 +347,11 @@ mod tests {
         let path = &adr_path(Active, NAME);
         for empty in ["\"\"", ""] {
             assert_eq!(
-                problems_in(&[with_fields(empty, "\"S.\"", "2026-11-02")], None),
+                problems_in(&[with_fields(empty, "\"S.\"", "2026-11-02")], ""),
                 [problem(path, EmptyField { key: "title".into() })]
             );
             assert_eq!(
-                problems_in(&[with_fields("\"T\"", empty, "2026-11-02")], None),
+                problems_in(&[with_fields("\"T\"", empty, "2026-11-02")], ""),
                 [problem(path, EmptyField { key: "summary".into() })]
             );
         }
@@ -362,11 +361,11 @@ mod tests {
     fn summaries_have_a_limit() {
         let summary = |chars: usize| format!("\"{}\"", "x".repeat(chars));
         assert_eq!(
-            problems_in(&[with_fields("\"T\"", &summary(300), "2026-11-02")], None),
+            problems_in(&[with_fields("\"T\"", &summary(300), "2026-11-02")], ""),
             Vec::<Problem>::new()
         );
         assert_eq!(
-            problems_in(&[with_fields("\"T\"", &summary(301), "2026-11-02")], None),
+            problems_in(&[with_fields("\"T\"", &summary(301), "2026-11-02")], ""),
             [problem(
                 &adr_path(Active, NAME),
                 SummaryTooLong { chars: 301 }
@@ -386,7 +385,7 @@ mod tests {
             "November 2, 2026",
         ] {
             assert_eq!(
-                problems_in(&[with_fields("\"T\"", "\"S.\"", date)], None),
+                problems_in(&[with_fields("\"T\"", "\"S.\"", date)], ""),
                 [problem(
                     &adr_path(Active, NAME),
                     BadDate { value: date.into() }
@@ -396,7 +395,7 @@ mod tests {
         }
         for date in ["2026-11-02", "2024-02-29"] {
             assert_eq!(
-                problems_in(&[with_fields("\"T\"", "\"S.\"", date)], None),
+                problems_in(&[with_fields("\"T\"", "\"S.\"", date)], ""),
                 Vec::<Problem>::new(),
                 "{date}"
             );
@@ -412,7 +411,7 @@ mod tests {
         let first = adr_path(Active, "0003-decision-3.md");
         let second = &adr_path(Superseded, "0003-another.md");
         assert_eq!(
-            problems_in(&files, None),
+            problems_in(&files, ""),
             sorted(vec![
                 problem(second, DuplicateId { number: 3, other: first }),
                 problem(second, SupersededButNotListed),
@@ -424,18 +423,18 @@ mod tests {
     fn supersedes_entries_must_name_existing_lower_adrs() {
         let path = &adr_path(Active, "0002-decision-2.md");
         assert_eq!(
-            problems_in(&[valid(Active, 2, &[7])], None),
+            problems_in(&[valid(Active, 2, &[7])], ""),
             [problem(path, SupersedesMissing { number: 7 })]
         );
         assert_eq!(
-            problems_in(&[valid(Active, 2, &[2])], None),
+            problems_in(&[valid(Active, 2, &[2])], ""),
             sorted(vec![
                 problem(path, SupersedesNotLower { number: 2 }),
                 problem(path, ActiveButSuperseded { by: 2 }),
             ])
         );
         assert_eq!(
-            problems_in(&[valid(Superseded, 3, &[]), valid(Active, 2, &[3])], None),
+            problems_in(&[valid(Superseded, 3, &[]), valid(Active, 2, &[3])], ""),
             [problem(path, SupersedesNotLower { number: 3 })]
         );
     }
@@ -450,15 +449,15 @@ mod tests {
             valid(Active, 3, &[1]),
         ];
         assert_eq!(
-            problems_in(&files, None),
+            problems_in(&files, ""),
             [problem(superseded, SupersededByMany { by: vec![2, 3] })]
         );
         assert_eq!(
-            problems_in(&[valid(Superseded, 1, &[])], None),
+            problems_in(&[valid(Superseded, 1, &[])], ""),
             [problem(superseded, SupersededButNotListed)]
         );
         assert_eq!(
-            problems_in(&[valid(Active, 1, &[]), valid(Active, 2, &[1])], None),
+            problems_in(&[valid(Active, 1, &[]), valid(Active, 2, &[1])], ""),
             [problem(active, ActiveButSuperseded { by: 2 })]
         );
     }
@@ -466,12 +465,7 @@ mod tests {
     #[test]
     fn adrs_dont_need_tags() {
         let files = [valid(Active, 1, &[]), valid(Active, 2, &[])];
-        for tags in [
-            None,
-            Some(""),
-            Some("ADR-0001: graph\n"),
-            Some("ADR-0001:\n"),
-        ] {
+        for tags in ["", "ADR-0001: graph\n", "ADR-0001:\n"] {
             assert_eq!(problems_in(&files, tags), Vec::<Problem>::new(), "{tags:?}");
         }
     }
@@ -479,10 +473,7 @@ mod tests {
     #[test]
     fn tags_must_name_existing_adrs() {
         assert_eq!(
-            problems_in(
-                &[valid(Active, 1, &[])],
-                Some("ADR-0001: graph\nADR-0004: graph, wires\n")
-            ),
+            problems_in(&[valid(Active, 1, &[])], "ADR-0001: graph\nADR-0004: graph, wires\n"),
             [problem(TAGS_PATH, TagsForMissingAdr { number: 4 })]
         );
     }
@@ -501,7 +492,7 @@ mod tests {
         ];
         let second = &adr_path(Active, "0002-decision-2.md");
         assert_eq!(
-            problems_in(&files, Some("ADR-0008: graph\n")),
+            problems_in(&files, "ADR-0008: graph\n"),
             sorted(vec![
                 problem(&adr_path(Active, "notes.md"), NameMismatch { number: 1 }),
                 problem(second, EmptyField { key: "title".into() }),

@@ -163,16 +163,20 @@ Checks fall into two groups, which are also the two stages of loading:
 - **Consistency checks** validate the `Adr`s against the semantic rules: `title` and `summary`
   aren't empty, `date` is a real date, and the ADRs agree with their file names and with each other.
 
-`records::load` is the one path into the ADRs, and it returns either every record or every
-structural problem:
+The ADR files and `tags.yaml` each have a step that reads them and a step that runs their structural
+checks, and `Records` brings the results together:
 
-1. Read the files in `active/` and `superseded/`, and `tags.yaml`. A missing directory or file
-   counts as empty.
-2. Parse each file into an `Adr`, or record its structural problems.
-3. Parse `tags.yaml` into a map from tag to ADR numbers, recording its structural problems.
-4. If anything was recorded, return the problems. A problem doesn't stop steps 2 and 3, so one run
-   reports all of them.
-5. Otherwise give each `Adr` its tags, and return the records.
+1. `load_adr_files` reads the files in `active/` and `superseded/`. A missing directory counts as
+   empty.
+2. `parse_adr_files` parses each file into an `Adr`, or finds every structural problem with them.
+3. `load_tags_file` reads `tags.yaml`. A missing file counts as empty.
+4. `parse_tags_file` parses it into a map from tag to ADR numbers, or finds every structural problem
+   with it.
+5. `Records::new` puts the `Adr`s in order by number and gives each one its tags.
+
+`load_records` runs all of these, and is the one path into the ADRs. It returns either every record
+or every structural problem, and a problem in the ADR files doesn't stop `tags.yaml` being parsed,
+so one run reports all of them. `load_tags` runs just steps 3 and 4.
 
 ```rust
 /// An ADR whose file passed the structural checks.
@@ -196,21 +200,40 @@ pub(super) struct Adr {
     tags: Vec<String>,
 }
 
+/// Each tag in `tags.yaml`, with the numbers of the ADRs it lists.
+pub(super) type Tags = BTreeMap<String, BTreeSet<u32>>;
+
 /// Every ADR and tag, once they've all passed the structural checks.
 pub(super) struct Records {
     /// Every ADR, by number.
     adrs: Vec<Adr>,
     /// Each tag in `tags.yaml`, with the numbers of the ADRs it lists.
-    tags: BTreeMap<String, BTreeSet<u32>>,
+    tags: Tags,
 }
 
+impl Records {
+    /// The records for `adrs` and `tags`, with the ADRs by number, each given its tags.
+    fn new(adrs: Vec<Adr>, tags: Tags) -> Self;
+}
+
+/// Reads the files in `active/` and `superseded/`, in that order and sorted by name.
+fn load_adr_files(root: &Path) -> io::Result<Vec<AdrFile>>;
+
+/// Parses each of `files` into an `Adr`, or finds every structural problem with them.
+fn parse_adr_files(files: &[AdrFile]) -> Result<Vec<Adr>, Vec<Problem>>;
+
+/// Reads `tags.yaml`.
+fn load_tags_file(root: &Path) -> io::Result<String>;
+
+/// Parses the text of `tags.yaml` into a map from tag to ADR numbers, or finds every structural
+/// problem with it.
+fn parse_tags_file(text: &str) -> Result<Tags, Vec<Problem>>;
+
 /// Reads every ADR and `tags.yaml`, or finds every structural problem with them.
-pub(super) fn load(root: &Path) -> io::Result<Result<Records, Vec<Problem>>>;
+pub(super) fn load_records(root: &Path) -> io::Result<Result<Records, Vec<Problem>>>;
 
 /// Reads just `tags.yaml`, or finds every structural problem with it.
-pub(super) fn load_tags(
-    root: &Path,
-) -> io::Result<Result<BTreeMap<String, BTreeSet<u32>>, Vec<Problem>>>;
+pub(super) fn load_tags(root: &Path) -> io::Result<Result<Tags, Vec<Problem>>>;
 
 /// Runs the consistency checks.
 pub(super) fn check(records: &Records) -> Vec<Problem>;
@@ -218,8 +241,8 @@ pub(super) fn check(records: &Records) -> Vec<Problem>;
 
 | Caller | Reads | Fails on |
 |---|---|---|
-| `check-docs` | `load`, then `check` | Structural or consistency problems |
-| `adr list` | `load` | Structural problems |
+| `check-docs` | `load_records`, then `check` | Structural or consistency problems |
+| `adr list` | `load_records` | Structural problems |
 | `adr tags` | `load_tags` | Structural problems in `tags.yaml` |
 
 Because `check` takes `Records`, it can't run on a partial set. That's the main reason the
@@ -380,7 +403,7 @@ The usage text points to the template, for anyone looking for `adr new`.
 
 `cargo xtask context` plans to use `adr list --tags --verbose` for its baseline, which still works,
 now with any ADRs that have no tags under `(no tags)`. For named tags, `context` can call
-`records::load`, filter, and read each `Adr`'s file, since `Adr` no longer holds the text. A
+`records::load_records`, filter, and read each `Adr`'s file, since `Adr` no longer holds the text. A
 structural problem on a branch will stop `context` as it stops `adr list`.
 
 ### Implementation notes
@@ -388,7 +411,7 @@ structural problem on a branch will stop `context` as it stops `adr list`.
 | File | Today (code + tests) | After, estimated | Role |
 |---|---|---|---|
 | `mod.rs` | 288 + 41 | 100 + 15 | Dispatch, usage, `Dir`, ids and names |
-| `records.rs` | 312 + 102 | 150 + 100 | `load`, `load_tags`, the structural checks |
+| `records.rs` | 312 + 102 | 150 + 100 | The load and parse steps, `load_records`, `load_tags` |
 | `check.rs` | 303 + 302 | 170 + 140 | `Problem`, the consistency checks |
 | `list.rs` | 158 + 185 | 150 + 180 | `adr list` |
 | `yaml.rs` | 131 + 69 | 75 + 50 | Flat YAML entries and their errors |
@@ -397,8 +420,9 @@ structural problem on a branch will stop `context` as it stops `adr list`.
 | `print.rs` | 53 + 39 | Removed | |
 | `tags.rs` | 33 + 24 | 25 + 20 | `adr tags` |
 
-That's from 2,790 lines to about 1,200. `AdrFile` goes, since nothing keeps a file's text after
-parsing it. `docs::front_matter` stays as it is, since design docs have a single `status` field.
+That's from 2,790 lines to about 1,200. `AdrFile` lasts only from reading a file to parsing it,
+since nothing keeps its text after that. `docs::front_matter` stays as it is, since design docs have
+a single `status` field.
 
 The work lands in three PRs, each with its own test review, with sizes as estimates until a PR is
 built:
@@ -406,7 +430,7 @@ built:
 | PR | Changes | Changed lines |
 |---|---|---|
 | 1. Commands | Removes `new.rs` and `print.rs`, simplifies `adr list` and `adr tags`, adds the recipe, and drops the requirement that every ADR has tags. Rewrites the template's instructions for the current format. This PR numbers the design doc | About 1,300 besides this doc, almost all deletions |
-| 2. Loading | `load` and `load_tags`, `check` over `Records`, and the split between structural and consistency checks. `adr list` and `adr tags` fail on structural problems. Passes and fails `check-docs` on the same files as before | About 800, half of it tests moving from `check.rs` to `records.rs` |
+| 2. Loading | `load_records` and `load_tags`, `check` over `Records`, and the split between structural and consistency checks. `adr list` and `adr tags` fail on structural problems. Passes and fails `check-docs` on the same files as before | About 800, half of it tests moving from `check.rs` to `records.rs` |
 | 3. Format | The new `yaml.rs` rules, the fields that depend on them, and `tags.yaml` keyed by tag, with the template and guide updated. Closes #16 | About 500 |
 
 Loading goes before the format so the format change touches one reading path rather than both.
@@ -550,8 +574,9 @@ The docs listed above describe the new format and commands.
 
 Unit tests in each module of `xtask/src/adr/` cover the reader (each rule, with the values in the
 table above among the cases), the structural checks, `tags.yaml`, each consistency check (comparing
-the full list of problems, as `docs.rs` does), `load` returning problems rather than records when
-any structural check fails, and the views against expected Markdown for a small set of ADRs.
+the full list of problems, as `docs.rs` does), `load_records` returning problems rather than
+records when any structural check fails, and the views against expected Markdown for a small set of
+ADRs.
 
 These tests work on in-memory text, with one test against a scratch directory for reading files from
 disk.

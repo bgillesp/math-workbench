@@ -1,4 +1,5 @@
-//! Loading ADRs: the files on disk, the structural checks, and the tags in `tags.yaml`.
+//! Loading the ADRs and `tags.yaml`. Each has a step that reads it from disk and a step that parses
+//! it, running the structural checks, and `Records` brings the results together.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fs;
@@ -61,6 +62,19 @@ pub(super) struct Records {
 }
 
 impl Records {
+    /// The records for `adrs` and `tags`, with the ADRs by number, each given its tags.
+    pub(super) fn new(mut adrs: Vec<Adr>, tags: Tags) -> Self {
+        for adr in &mut adrs {
+            adr.tags = tags
+                .iter()
+                .filter(|(_, numbers)| numbers.contains(&adr.number))
+                .map(|(tag, _)| tag.clone())
+                .collect();
+        }
+        adrs.sort_by_key(|adr| adr.number);
+        Self { adrs, tags }
+    }
+
     /// The numbers of the ADRs whose `supersedes` lists `number`, in order.
     pub(super) fn successors(&self, number: u32) -> Vec<u32> {
         let mut successors: Vec<u32> = self
@@ -75,20 +89,49 @@ impl Records {
 }
 
 /// Reads every ADR and `tags.yaml`, or finds every structural problem with them.
-pub(super) fn load(root: &Path) -> io::Result<Result<Records, Vec<Problem>>> {
-    let (files, tags) = read_adr_files(root)?;
-    Ok(parse(&files, tags.as_deref()))
+pub(super) fn load_records(root: &Path) -> io::Result<Result<Records, Vec<Problem>>> {
+    let adrs = parse_adr_files(&load_adr_files(root)?);
+    let tags = parse_tags_file(&load_tags_file(root)?);
+    Ok(match (adrs, tags) {
+        (Ok(adrs), Ok(tags)) => Ok(Records::new(adrs, tags)),
+        (adrs, tags) => Err(adrs.err().into_iter().chain(tags.err()).flatten().collect()),
+    })
 }
 
 /// Reads just `tags.yaml`, or finds every structural problem with it.
 pub(super) fn load_tags(root: &Path) -> io::Result<Result<Tags, Vec<Problem>>> {
-    let tags = read_optional(root, TAGS_PATH)?;
-    Ok(parse_tags(tags.as_deref().unwrap_or_default()).map_err(tags_problems))
+    Ok(parse_tags_file(&load_tags_file(root)?))
 }
 
-/// Reads every ADR in `files` and `tags` (`None` if `tags.yaml` is missing), or finds every
-/// structural problem with them.
-pub(super) fn parse(files: &[AdrFile], tags: Option<&str>) -> Result<Records, Vec<Problem>> {
+/// Reads the files in `active/` and `superseded/`, in that order and sorted by name. A missing
+/// directory counts as empty.
+fn load_adr_files(root: &Path) -> io::Result<Vec<AdrFile>> {
+    let mut files = Vec::new();
+    for dir in [Dir::Active, Dir::Superseded] {
+        let path = format!("{ADR_DIR}/{}", dir.name());
+        let entries = match fs::read_dir(root.join(&path)) {
+            Ok(entries) => entries,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => continue,
+            Err(err) => return Err(at(&path, &err)),
+        };
+        let mut in_dir = Vec::new();
+        for entry in entries {
+            let entry = entry.map_err(|err| at(&path, &err))?;
+            if entry.file_type().map_err(|err| at(&path, &err))?.is_file() {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                let text = fs::read_to_string(entry.path())
+                    .map_err(|err| at(&format!("{path}/{name}"), &err))?;
+                in_dir.push(AdrFile { dir, name, text });
+            }
+        }
+        in_dir.sort_by(|a, b| a.name.cmp(&b.name));
+        files.extend(in_dir);
+    }
+    Ok(files)
+}
+
+/// Parses each of `files` into an `Adr`, or finds every structural problem with them.
+pub(super) fn parse_adr_files(files: &[AdrFile]) -> Result<Vec<Adr>, Vec<Problem>> {
     let mut adrs = Vec::new();
     let mut problems = Vec::new();
     for file in files {
@@ -99,27 +142,7 @@ pub(super) fn parse(files: &[AdrFile], tags: Option<&str>) -> Result<Records, Ve
             },
         }
     }
-    let tags = parse_tags(tags.unwrap_or_default()).unwrap_or_else(|kinds| {
-        problems.extend(tags_problems(kinds));
-        Tags::new()
-    });
-    if !problems.is_empty() {
-        return Err(problems);
-    }
-    for adr in &mut adrs {
-        adr.tags = tags
-            .iter()
-            .filter(|(_, numbers)| numbers.contains(&adr.number))
-            .map(|(tag, _)| tag.clone())
-            .collect();
-    }
-    adrs.sort_by_key(|adr| adr.number);
-    Ok(Records { adrs, tags })
-}
-
-/// `kinds` as problems with `tags.yaml`.
-fn tags_problems(kinds: Vec<ProblemKind>) -> Vec<Problem> {
-    kinds.into_iter().map(|kind| Problem { path: TAGS_PATH.to_string(), kind }).collect()
+    if problems.is_empty() { Ok(adrs) } else { Err(problems) }
 }
 
 /// Reads an ADR's front matter, or every structural problem with it.
@@ -206,10 +229,33 @@ fn parse_adr(file: &AdrFile) -> Result<Adr, Vec<ProblemKind>> {
     Err(problems)
 }
 
-/// Reads `tags.yaml` into a map from tag to ADR numbers, or every structural problem with it.
-fn parse_tags(text: &str) -> Result<Tags, Vec<ProblemKind>> {
+/// The text between the `---` line that opens `text` and the next `---` line.
+fn front_matter_block(text: &str) -> Option<&str> {
+    let rest = text.strip_prefix("---\n").or_else(|| text.strip_prefix("---\r\n"))?;
+    let mut end = 0;
+    for line in rest.split_inclusive('\n') {
+        if line.trim_end() == "---" {
+            return Some(&rest[..end]);
+        }
+        end += line.len();
+    }
+    None
+}
+
+/// Reads `tags.yaml`. A missing file counts as empty.
+fn load_tags_file(root: &Path) -> io::Result<String> {
+    match fs::read_to_string(root.join(TAGS_PATH)) {
+        Ok(text) => Ok(text),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(String::new()),
+        Err(err) => Err(at(TAGS_PATH, &err)),
+    }
+}
+
+/// Parses the text of `tags.yaml` into a map from tag to ADR numbers, or finds every structural
+/// problem with it.
+pub(super) fn parse_tags_file(text: &str) -> Result<Tags, Vec<Problem>> {
     let (entries, errors) = yaml::read(text);
-    let mut problems: Vec<ProblemKind> = errors
+    let mut kinds: Vec<ProblemKind> = errors
         .into_iter()
         .map(|error| match error {
             yaml::Error::MalformedLine { line } => ProblemKind::TagsMalformedLine { line },
@@ -225,71 +271,25 @@ fn parse_tags(text: &str) -> Result<Tags, Vec<ProblemKind>> {
                 yaml::Value::Plain(value) => format!("{}: {value}", entry.key),
                 yaml::Value::Quoted(value) => format!("{}: \"{value}\"", entry.key),
             };
-            problems.push(ProblemKind::TagsMalformedLine { line });
+            kinds.push(ProblemKind::TagsMalformedLine { line });
             continue;
         };
         if !entered.insert(number) {
-            problems.push(ProblemKind::DuplicateTagsEntry { number });
+            kinds.push(ProblemKind::DuplicateTagsEntry { number });
         } else if !entry.value.text().is_empty() {
             for tag in split_tags(entry.value.text()) {
                 if is_tag(tag) {
                     tags.entry(tag.to_string()).or_default().insert(number);
                 } else {
-                    problems.push(ProblemKind::BadTag { number, tag: tag.to_string() });
+                    kinds.push(ProblemKind::BadTag { number, tag: tag.to_string() });
                 }
             }
         }
     }
-    if problems.is_empty() { Ok(tags) } else { Err(problems) }
-}
-
-/// The text between the `---` line that opens `text` and the next `---` line.
-fn front_matter_block(text: &str) -> Option<&str> {
-    let rest = text.strip_prefix("---\n").or_else(|| text.strip_prefix("---\r\n"))?;
-    let mut end = 0;
-    for line in rest.split_inclusive('\n') {
-        if line.trim_end() == "---" {
-            return Some(&rest[..end]);
-        }
-        end += line.len();
+    if kinds.is_empty() {
+        return Ok(tags);
     }
-    None
-}
-
-/// Reads the files in `active/` and `superseded/`, in that order and sorted by name, and the
-/// contents of `tags.yaml`. A missing directory or tags file counts as empty.
-pub(super) fn read_adr_files(root: &Path) -> io::Result<(Vec<AdrFile>, Option<String>)> {
-    let mut files = Vec::new();
-    for dir in [Dir::Active, Dir::Superseded] {
-        let path = format!("{ADR_DIR}/{}", dir.name());
-        let entries = match fs::read_dir(root.join(&path)) {
-            Ok(entries) => entries,
-            Err(err) if err.kind() == io::ErrorKind::NotFound => continue,
-            Err(err) => return Err(at(&path, &err)),
-        };
-        let mut in_dir = Vec::new();
-        for entry in entries {
-            let entry = entry.map_err(|err| at(&path, &err))?;
-            if entry.file_type().map_err(|err| at(&path, &err))?.is_file() {
-                let name = entry.file_name().to_string_lossy().into_owned();
-                let text = fs::read_to_string(entry.path())
-                    .map_err(|err| at(&format!("{path}/{name}"), &err))?;
-                in_dir.push(AdrFile { dir, name, text });
-            }
-        }
-        in_dir.sort_by(|a, b| a.name.cmp(&b.name));
-        files.extend(in_dir);
-    }
-    Ok((files, read_optional(root, TAGS_PATH)?))
-}
-
-/// The contents of the file at `path` under `root`, or `None` if there's no file there.
-fn read_optional(root: &Path, path: &str) -> io::Result<Option<String>> {
-    match fs::read_to_string(root.join(path)) {
-        Ok(text) => Ok(Some(text)),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(err) => Err(at(path, &err)),
-    }
+    Err(kinds.into_iter().map(|kind| Problem { path: TAGS_PATH.to_string(), kind }).collect())
 }
 
 /// `err`, with the repository-relative path it happened at in its message.
@@ -308,7 +308,7 @@ mod tests {
         UnknownKey, UnterminatedQuote,
     };
     use crate::adr::fixtures::{
-        SAMPLE_TAGS, TempRoot, file, sample_files, valid, with_front_matter,
+        SAMPLE_TAGS, TempRoot, file, records_from, sample_files, valid, with_front_matter,
     };
 
     /// The file name of the ADR that `record` and `kinds` read.
@@ -330,21 +330,21 @@ mod tests {
     /// The record for one ADR with this front matter, which has to pass the structural checks.
     fn record(front_matter: &str) -> Adr {
         let file = with_front_matter(Active, NAME, front_matter);
-        parse(&[file], None).unwrap().adrs.remove(0)
+        parse_adr_files(&[file]).unwrap().remove(0)
     }
 
     /// The kinds of the structural problems in one ADR with this front matter, each of which has
     /// to name its file.
     fn kinds(front_matter: &str) -> Vec<ProblemKind> {
         let file = with_front_matter(Active, NAME, front_matter);
-        let problems = sorted(parse(&[file], None).unwrap_err());
+        let problems = sorted(parse_adr_files(&[file]).unwrap_err());
         assert!(problems.iter().all(|problem| problem.path == adr_path(Active, NAME)));
         problems.into_iter().map(|problem| problem.kind).collect()
     }
 
     /// The kinds of the structural problems in this `tags.yaml`, each of which has to name it.
     fn tags_kinds(tags: &str) -> Vec<ProblemKind> {
-        let problems = sorted(parse(&[], Some(tags)).unwrap_err());
+        let problems = sorted(parse_tags_file(tags).unwrap_err());
         assert!(problems.iter().all(|problem| problem.path == TAGS_PATH));
         problems.into_iter().map(|problem| problem.kind).collect()
     }
@@ -356,7 +356,7 @@ mod tests {
                     summary: \"Every wire has a static type.\"\ndate: 2026-11-02\n\
                     supersedes: ADR-0001, ADR-0002\n---\n\n# ADR-0003\n";
         assert_eq!(
-            parse(&[file(Active, name, text)], None).unwrap().adrs,
+            parse_adr_files(&[file(Active, name, text)]).unwrap(),
             [Adr {
                 dir: Active,
                 name: name.into(),
@@ -383,7 +383,7 @@ mod tests {
     fn files_need_a_front_matter_block() {
         for text in ["# ADR-0001\n", "---\nid: ADR-0001\n"] {
             assert_eq!(
-                parse(&[file(Active, NAME, text)], None),
+                parse_adr_files(&[file(Active, NAME, text)]),
                 Err(vec![problem(&adr_path(Active, NAME), NoFrontMatter)]),
                 "{text:?}"
             );
@@ -490,9 +490,8 @@ mod tests {
                 &format!("id: ADR-0001\ntitle:\nsummary: \"{long}\"\ndate:\n"),
             ),
         ];
-        let records = parse(&files, Some("ADR-0008: stale\n")).unwrap();
         assert_eq!(
-            records.adrs,
+            parse_adr_files(&files).unwrap(),
             [
                 Adr {
                     dir: Active,
@@ -516,13 +515,16 @@ mod tests {
                 },
             ]
         );
-        assert_eq!(records.tags, Tags::from([("stale".to_string(), BTreeSet::from([8]))]));
+        assert_eq!(
+            parse_tags_file("ADR-0008: stale\n").unwrap(),
+            Tags::from([("stale".to_string(), BTreeSet::from([8]))])
+        );
     }
 
     #[test]
     fn tags_read_as_a_map_from_tag_to_adrs() {
         assert_eq!(
-            parse(&[], Some(SAMPLE_TAGS)).unwrap().tags,
+            parse_tags_file(SAMPLE_TAGS).unwrap(),
             Tags::from([
                 ("dynamic-typing".to_string(), BTreeSet::from([1])),
                 ("file-format".to_string(), BTreeSet::from([2])),
@@ -536,7 +538,7 @@ mod tests {
     fn adrs_come_back_by_number_with_sorted_tags() {
         let mut files = sample_files();
         files.push(valid(Active, 5, &[]));
-        let records = parse(&files, Some(SAMPLE_TAGS)).unwrap();
+        let records = records_from(&files, SAMPLE_TAGS);
         let strings =
             |items: &[&str]| -> Vec<String> { items.iter().map(ToString::to_string).collect() };
         let numbers_and_tags: Vec<(u32, Vec<String>)> =
@@ -596,9 +598,14 @@ mod tests {
                 &format!("id: ADR-0004\n{FIELDS}area: graph\n"),
             ),
         ];
+        let root = TempRoot::new("every-problem");
+        for adr in &files {
+            root.write_adr(adr);
+        }
+        root.write(TAGS_PATH, "not a line\nADR-0003: Wires\n");
         let second = &adr_path(Active, "0002-two-problems.md");
         assert_eq!(
-            sorted(parse(&files, Some("not a line\nADR-0003: Wires\n")).unwrap_err()),
+            sorted(load_records(&root.0).unwrap().unwrap_err()),
             sorted(vec![
                 problem(&adr_path(Active, "0001-no-block.md"), NoFrontMatter),
                 problem(second, BadId { value: "2".into() }),
@@ -616,7 +623,8 @@ mod tests {
     #[test]
     fn missing_directories_and_tags_count_as_empty() {
         let root = TempRoot::new("missing");
-        assert_eq!(read_adr_files(&root.0).unwrap(), (vec![], None));
+        assert_eq!(load_adr_files(&root.0).unwrap(), vec![]);
+        assert_eq!(load_tags_file(&root.0).unwrap(), "");
     }
 
     #[test]
@@ -630,18 +638,16 @@ mod tests {
         for adr in &files {
             root.write_adr(adr);
         }
-        root.write(&format!("{ADR_DIR}/tags.yaml"), "ADR-0001: graph\n");
+        root.write(TAGS_PATH, "ADR-0001: graph\n");
         root.write(&format!("{ADR_DIR}/active/notes/ignored.md"), "a directory, not an ADR\n");
         assert_eq!(
-            read_adr_files(&root.0).unwrap(),
-            (
-                vec![
-                    valid(Active, 2, &[1]),
-                    valid(Active, 3, &[]),
-                    valid(Superseded, 1, &[])
-                ],
-                Some("ADR-0001: graph\n".to_string())
-            )
+            load_adr_files(&root.0).unwrap(),
+            vec![
+                valid(Active, 2, &[1]),
+                valid(Active, 3, &[]),
+                valid(Superseded, 1, &[])
+            ]
         );
+        assert_eq!(load_tags_file(&root.0).unwrap(), "ADR-0001: graph\n");
     }
 }

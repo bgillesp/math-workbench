@@ -140,7 +140,7 @@ pub(crate) fn run(root: &Path, parser: lexopt::Parser) -> ExitCode {
 
 /// The ADR checks that `check-docs` runs, as messages.
 pub(crate) fn check_docs(root: &Path) -> io::Result<Vec<String>> {
-    let problems = match records::load(root)? {
+    let problems = match records::load_records(root)? {
         Ok(records) => check::check(&records),
         Err(problems) => problems,
     };
@@ -157,7 +157,7 @@ fn messages(problems: &[check::Problem]) -> Vec<String> {
 fn execute(root: &Path, command: Command) -> Result<String, Vec<String>> {
     Ok(match command {
         Command::List(options) => {
-            let records = records::load(root)
+            let records = records::load_records(root)
                 .map_err(|err| vec![err.to_string()])?
                 .map_err(|problems| messages(&problems))?;
             list::render(&records, &options).map_err(|message| vec![message])?
