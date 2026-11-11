@@ -5,7 +5,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use super::Dir::{Active, Superseded};
-use super::records::{Adr, load};
+use super::records::{Records, parse_adr_files, parse_tags_file};
 use super::{AdrFile, Dir};
 
 /// An ADR file in `dir` with the given name and contents.
@@ -30,12 +30,9 @@ pub(super) fn valid(dir: Dir, n: u32, supersedes: &[u32]) -> AdrFile {
     with_front_matter(dir, &format!("{n:04}-decision-{n}.md"), &front_matter)
 }
 
-/// `tags.yaml` giving each numbered ADR the tag `graph`.
-pub(super) fn tags_for(numbers: &[u32]) -> String {
-    numbers.iter().fold(String::new(), |mut tags, n| {
-        let _ = writeln!(tags, "ADR-{n:04}: graph");
-        tags
-    })
+/// A well-formed ADR numbered `n`, with the file name `name`.
+pub(super) fn named(dir: Dir, name: &str, n: u32) -> AdrFile {
+    AdrFile { name: name.to_string(), ..valid(dir, n, &[]) }
 }
 
 /// Three ADRs: 0001 superseded by 0003, and 0002 and 0003 in force.
@@ -68,11 +65,14 @@ pub(super) fn sample_files() -> Vec<AdrFile> {
 pub(super) const SAMPLE_TAGS: &str =
     "ADR-0001: graph, dynamic-typing\nADR-0002: file-format\nADR-0003: graph, wires\n";
 
+/// The records for `files` and the text of `tags.yaml`, which have to pass the structural checks.
+pub(super) fn records_from(files: &[AdrFile], tags: &str) -> Records {
+    Records::new(parse_adr_files(files).unwrap(), parse_tags_file(tags).unwrap())
+}
+
 /// The sample ADRs, loaded for the views.
-pub(super) fn sample() -> Vec<Adr> {
-    let loaded = load(sample_files(), Some(SAMPLE_TAGS));
-    assert_eq!(loaded.warnings, Vec::<String>::new());
-    loaded.adrs
+pub(super) fn sample() -> Records {
+    records_from(&sample_files(), SAMPLE_TAGS)
 }
 
 /// A scratch repository under the system temp directory, removed when dropped.

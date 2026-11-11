@@ -1,9 +1,8 @@
 //! `adr tags`: every tag, one per line.
 
-use std::collections::BTreeSet;
 use std::fmt::Write;
 
-use super::records::Adr;
+use super::records::Tags;
 
 /// Parses the arguments after `adr tags`, which takes none.
 pub(super) fn parse_args(mut parser: lexopt::Parser) -> Result<(), lexopt::Error> {
@@ -13,14 +12,13 @@ pub(super) fn parse_args(mut parser: lexopt::Parser) -> Result<(), lexopt::Error
     }
 }
 
-/// The `adr tags` output for `adrs`.
-pub(super) fn render(adrs: &[Adr]) -> String {
-    let tags: BTreeSet<&String> = adrs.iter().flat_map(|adr| &adr.tags).collect();
+/// The `adr tags` output for `tags`.
+pub(super) fn render(tags: &Tags) -> String {
     if tags.is_empty() {
         return "None yet.\n".to_string();
     }
     let mut output = String::new();
-    for tag in tags {
+    for tag in tags.keys() {
         let _ = writeln!(output, "{tag}");
     }
     output
@@ -39,11 +37,11 @@ mod tests {
 
     #[test]
     fn each_tag_prints_once_on_its_own_line_sorted() {
-        assert_eq!(render(&sample()), "dynamic-typing\nfile-format\ngraph\nwires\n");
+        assert_eq!(render(&sample().tags), "dynamic-typing\nfile-format\ngraph\nwires\n");
     }
 
     #[test]
     fn tags_says_none_yet_without_adrs() {
-        assert_eq!(render(&[]), "None yet.\n");
+        assert_eq!(render(&Tags::new()), "None yet.\n");
     }
 }
