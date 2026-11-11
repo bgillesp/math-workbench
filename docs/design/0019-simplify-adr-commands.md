@@ -129,10 +129,13 @@ one line and across several, and everything they accept reads as the same text. 
 whole value that reads as a number, boolean, or date, such as `title: 123`, which is harmless here.
 The blank line, comment, and tab cases were checked by hand against PyYAML and Psych.
 
-The reader reports problems as `yaml::Error`, with variants for a malformed line, a repeated key, a
-bad closing quote, a stray quote or backslash, and a value that needs quotes. Both callers pass
-these errors through unchanged as structural problems, so a repeated key or bad value in front
-matter fails that ADR like any other malformed header.
+The reader builds a map from key to value as it goes, which is how it finds a repeated key, and
+reports problems as `yaml::Error`, with variants for a malformed line, a repeated key, a bad closing
+quote, a stray quote or backslash, and a value that needs quotes. Both callers pass these errors
+through unchanged as structural problems, so a repeated key or bad value in front matter fails that
+ADR like any other malformed header. A value the reader can't read stays out of the map, so a
+required field with a bad value is reported as missing too. Two problems for one mistake is simpler
+than keeping track of the keys whose values couldn't be read.
 
 ### `tags.yaml`
 
@@ -377,8 +380,9 @@ two-space indent as it is today:
   so a mistyped connection is rejected before anything is evaluated.
 ```
 
-With no ADRs, `adr list` and `adr tags` print "None yet.", and a list with only superseded ADRs to
-leave out prints "None in force.", also as they do today.
+For an ADR whose summary is still empty, which only `check-docs` rejects, `--verbose` prints just
+the path. With no ADRs, `adr list` and `adr tags` print "None yet.", and a list with only superseded
+ADRs to leave out prints "None in force.", also as they do today.
 
 A value for `--tags` is always attached, since `--tags` can stand alone. `adr list` takes no other
 values, so any value it's given gets an error suggesting the attached form. An unknown tag's error
@@ -408,30 +412,35 @@ structural problem on a branch will stop `context` as it stops `adr list`.
 
 ### Implementation notes
 
-| File | Today (code + tests) | After, estimated | Role |
+| File | Before (code + tests) | After the Loading PR | Role |
 |---|---|---|---|
-| `mod.rs` | 288 + 41 | 100 + 15 | Dispatch, usage, `Dir`, ids and names |
-| `records.rs` | 312 + 102 | 150 + 100 | The load and parse steps, `load_records`, `load_tags` |
-| `check.rs` | 303 + 302 | 170 + 140 | `Problem`, the consistency checks |
-| `list.rs` | 158 + 185 | 150 + 180 | `adr list` |
-| `yaml.rs` | 131 + 69 | 75 + 50 | Flat YAML entries and their errors |
-| `fixtures.rs` | 161 | 50 | Sample ADRs, one scratch directory helper |
+| `mod.rs` | 288 + 41 | 265 + 227 | Dispatch, usage, `Dir`, ids and names |
+| `records.rs` | 312 + 102 | 299 + 354 | The load and parse steps, `load_records`, `load_tags` |
+| `check.rs` | 303 + 302 | 266 + 276 | `Problem`, the consistency checks |
+| `list.rs` | 158 + 185 | 159 + 179 | `adr list` |
+| `yaml.rs` | 131 + 69 | 131 + 69 | Flat YAML entries and their errors |
+| `fixtures.rs` | 161 | 111 | Sample ADRs, one scratch directory helper |
 | `new.rs` | 368 + 221 | Removed | |
 | `print.rs` | 53 + 39 | Removed | |
-| `tags.rs` | 33 + 24 | 25 + 20 | `adr tags` |
+| `tags.rs` | 33 + 24 | 26 + 21 | `adr tags` |
 
-That's from 2,790 lines to about 1,200. `AdrFile` lasts only from reading a file to parsing it,
-since nothing keeps its text after that. `docs::front_matter` stays as it is, since design docs have
-a single `status` field.
+That's from 2,790 lines to 2,383 after the Loading PR. Production code goes from 1,646 lines to
+1,146, almost all of that from removing `adr new` and `adr print`, and tests go from 1,144 to 1,237.
+The Loading PR's gain is in structure rather than size: it leaves the production code about the
+same, and adds tests for the split between the two stages. The Format PR mostly rewrites `yaml.rs`
+and the `tags.yaml` parser, so it shouldn't change these totals much.
 
-The work lands in three PRs, each with its own test review, with sizes as estimates until a PR is
-built:
+`AdrFile` lasts only from reading a file to parsing it, since nothing keeps its text after that.
+`docs::front_matter` stays as it is, since design docs have a single `status` field.
+
+The work lands in three PRs, each with its own test review, with sizes measured for the PRs that
+have been built:
 
 | PR | Changes | Changed lines |
 |---|---|---|
-| 1. Commands | Removes `new.rs` and `print.rs`, simplifies `adr list` and `adr tags`, adds the recipe, and drops the requirement that every ADR has tags. Rewrites the template's instructions for the current format. This PR numbers the design doc | About 1,300 besides this doc, almost all deletions |
-| 2. Loading | `load_records` and `load_tags`, `check` over `Records`, and the split between structural and consistency checks. `adr list` and `adr tags` fail on structural problems. Passes and fails `check-docs` on the same files as before | About 800, half of it tests moving from `check.rs` to `records.rs` |
-| 3. Format | The new `yaml.rs` rules, the fields that depend on them, and `tags.yaml` keyed by tag, with the template and guide updated. Closes #16 | About 500 |
+| 1. Commands | Removes `new.rs` and `print.rs`, simplifies `adr list` and `adr tags`, adds the recipe, and drops the requirement that every ADR has tags. Rewrites the template's instructions for the current format. This PR numbers the design doc | 1,292 besides this doc, almost all deletions |
+| 2. Loading | `load_records` and `load_tags`, `check` over `Records`, and the split between structural and consistency checks. `adr list` and `adr tags` fail on structural problems. Passes and fails `check-docs` on the same files as before | 1,695 besides this doc, 901 of them in tests |
+| 3. Format | The new `yaml.rs` rules, the fields that depend on them, and `tags.yaml` keyed by tag, with the template and guide updated. Closes #16 | About 500, estimated |
 
 Loading goes before the format so the format change touches one reading path rather than both.
 `yaml.rs` and the `tags.yaml` parser are leaves of the pipeline, so replacing them doesn't disturb
@@ -578,8 +587,8 @@ the full list of problems, as `docs.rs` does), `load_records` returning problems
 records when any structural check fails, and the views against expected Markdown for a small set of
 ADRs.
 
-These tests work on in-memory text, with one test against a scratch directory for reading files from
-disk.
+These tests work on in-memory text, except those of `load_records` and the commands, which take a
+repository root and use scratch directories.
 
 A manual run in a scratch copy of the repository covers the workflow end to end, following the
 template's instructions: write an ADR by hand, supersede it, print each view, and run `just ci`.
