@@ -2,8 +2,8 @@
 
 use std::collections::BTreeSet;
 
-use super::list_arg;
-use super::records::Adr;
+use super::records::{Adr, Records};
+use super::{ids, list_arg};
 
 /// The column summaries are wrapped at with `--verbose`.
 const SUMMARY_WIDTH: usize = 80;
@@ -64,17 +64,20 @@ pub(super) fn parse_args(mut parser: lexopt::Parser) -> Result<Options, lexopt::
     Ok(options)
 }
 
-/// The `adr list` output for `adrs`, or an error naming a tag that no ADR has.
-pub(super) fn render(adrs: &[Adr], options: &Options) -> Result<String, String> {
-    if adrs.is_empty() {
+/// The `adr list` output for `records`, or an error naming a tag that doesn't exist.
+pub(super) fn render(records: &Records, options: &Options) -> Result<String, String> {
+    if records.adrs.is_empty() {
         return Ok("None yet.\n".to_string());
     }
-    let shown: Vec<&Adr> = adrs.iter().filter(|adr| options.all || adr.is_active()).collect();
+    let shown: Vec<&Adr> =
+        records.adrs.iter().filter(|adr| options.all || adr.is_active()).collect();
     let entries = |adrs: &[&Adr]| -> String {
         if adrs.is_empty() {
             return "None in force.\n".to_string();
         }
-        adrs.iter().map(|adr| entry(adr, options.verbose)).collect()
+        adrs.iter()
+            .map(|adr| entry(adr, &records.successors(adr.number), options.verbose))
+            .collect()
     };
     let tags: Vec<&String> = match &options.grouping {
         Grouping::Flat => return Ok(entries(&shown)),
@@ -84,7 +87,7 @@ pub(super) fn render(adrs: &[Adr], options: &Options) -> Result<String, String> 
             tags.into_iter().collect()
         },
         Grouping::Tags(tags) => {
-            let unknown = tags.iter().find(|tag| !adrs.iter().any(|adr| adr.tags.contains(tag)));
+            let unknown = tags.iter().find(|tag| !records.tags.contains_key(*tag));
             if let Some(tag) = unknown {
                 return Err(format!(
                     "there's no tag `{tag}`; `cargo xtask adr tags` lists the tags"
@@ -110,20 +113,26 @@ pub(super) fn render(adrs: &[Adr], options: &Options) -> Result<String, String> 
     Ok(groups.join("\n"))
 }
 
-/// An ADR's entry in the list, with its path and summary below it if `verbose`.
-fn entry(adr: &Adr, verbose: bool) -> String {
-    let mut entry = format!("- ADR-{:04}: {}", adr.front_matter.number, adr.front_matter.title);
+/// An ADR's entry in the list, noting its `successors` if it's superseded, with its path and
+/// summary below it if `verbose`.
+fn entry(adr: &Adr, successors: &[u32], verbose: bool) -> String {
+    let mut entry = format!("- ADR-{:04}: {}", adr.number, adr.title);
     if !adr.tags.is_empty() {
         entry = format!("{entry} ({})", adr.tags.join("/"));
     }
     if !adr.is_active() {
-        entry = format!("{entry}, {}", adr.status());
+        entry.push_str(", superseded");
+        if !successors.is_empty() {
+            entry = format!("{entry} by {}", ids(successors));
+        }
     }
     entry.push('\n');
     if verbose {
-        entry = format!("{entry}  {}\n", adr.file.path());
-        entry.push_str(&wrap(&adr.front_matter.summary, SUMMARY_WIDTH, "  "));
-        entry.push('\n');
+        entry = format!("{entry}  {}\n", adr.path());
+        if !adr.summary.is_empty() {
+            entry.push_str(&wrap(&adr.summary, SUMMARY_WIDTH, "  "));
+            entry.push('\n');
+        }
     }
     entry
 }
@@ -152,8 +161,7 @@ fn wrap(text: &str, width: usize, indent: &str) -> String {
 mod tests {
     use super::*;
     use crate::adr::Dir::{Active, Superseded};
-    use crate::adr::fixtures::{SAMPLE_TAGS, sample, sample_files, valid};
-    use crate::adr::records::load;
+    use crate::adr::fixtures::{SAMPLE_TAGS, records_from, sample, sample_files, valid};
 
     fn parse(args: &[&str]) -> Result<Options, String> {
         parse_args(lexopt::Parser::from_args(args)).map_err(|err| err.to_string())
@@ -168,10 +176,10 @@ mod tests {
     }
 
     /// The sample ADRs, plus ADR-0005, which is in force and has no tags.
-    fn with_untagged() -> Vec<Adr> {
+    fn with_untagged() -> Records {
         let mut files = sample_files();
         files.push(valid(Active, 5, &[]));
-        load(files, Some(SAMPLE_TAGS)).adrs
+        records_from(&files, SAMPLE_TAGS)
     }
 
     #[test]
@@ -210,7 +218,7 @@ mod tests {
         let options = Options { all: true, ..Options::default() };
         assert_eq!(
             render(&sample(), &options),
-            Ok("- ADR-0001: Wires are dynamically typed (graph/dynamic-typing), superseded by \
+            Ok("- ADR-0001: Wires are dynamically typed (dynamic-typing/graph), superseded by \
                 ADR-0003\n\
                 - ADR-0002: Versioned project files (file-format)\n\
                 - ADR-0003: Wire types: checked on connect (graph/wires)\n"
@@ -267,9 +275,9 @@ mod tests {
     #[test]
     fn options_combine() {
         let files = vec![valid(Superseded, 1, &[]), valid(Active, 2, &[1])];
-        let adrs = load(files, Some("ADR-0002: graph\n")).adrs;
+        let records = records_from(&files, "ADR-0002: graph\n");
         assert_eq!(
-            render(&adrs, &parse(&["--all", "--tags", "--verbose"]).unwrap()),
+            render(&records, &parse(&["--all", "--tags", "--verbose"]).unwrap()),
             Ok("## graph\n\n\
                 - ADR-0002: Decision 2 (graph)\n  \
                 docs/architecture/decisions/active/0002-decision-2.md\n  \
@@ -282,13 +290,13 @@ mod tests {
         );
         // Without `--all`, the superseded ADR stays out of `(no tags)`.
         assert_eq!(
-            render(&adrs, &parse(&["--tags"]).unwrap()),
+            render(&records, &parse(&["--tags"]).unwrap()),
             Ok("## graph\n\n- ADR-0002: Decision 2 (graph)\n".to_string())
         );
         assert_eq!(
             render(&sample(), &parse(&["--all", "--tags=dynamic-typing", "--verbose"]).unwrap()),
             Ok("## dynamic-typing\n\n\
-                - ADR-0001: Wires are dynamically typed (graph/dynamic-typing), superseded by \
+                - ADR-0001: Wires are dynamically typed (dynamic-typing/graph), superseded by \
                 ADR-0003\n  \
                 docs/architecture/decisions/superseded/0001-wires-are-dynamically-typed.md\n  \
                 Wires carry values of any type, checked when a tile reads them.\n"
@@ -307,9 +315,9 @@ mod tests {
     #[test]
     fn says_none_when_nothing_is_shown() {
         let none_in_force = Ok("None in force.\n".to_string());
-        let superseded = load(vec![valid(Superseded, 1, &[])], Some("ADR-0001: graph\n")).adrs;
+        let superseded = records_from(&[valid(Superseded, 1, &[])], "ADR-0001: graph\n");
         let by_tag = Options { grouping: Grouping::AllTags, ..Options::default() };
-        assert_eq!(render(&[], &Options::default()), Ok("None yet.\n".to_string()));
+        assert_eq!(render(&Records::default(), &Options::default()), Ok("None yet.\n".to_string()));
         assert_eq!(render(&superseded, &Options::default()), none_in_force);
         assert_eq!(render(&superseded, &by_tag), none_in_force);
         assert_eq!(
