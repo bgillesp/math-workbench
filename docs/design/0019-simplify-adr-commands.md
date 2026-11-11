@@ -216,21 +216,21 @@ pub(super) struct Records {
 
 impl Records {
     /// The records for `adrs` and `tags`, with the ADRs by number, each given its tags.
-    fn new(adrs: Vec<Adr>, tags: Tags) -> Self;
+    pub(super) fn new(adrs: Vec<Adr>, tags: Tags) -> Self;
 }
 
 /// Reads the files in `active/` and `superseded/`, in that order and sorted by name.
 fn load_adr_files(root: &Path) -> io::Result<Vec<AdrFile>>;
 
 /// Parses each of `files` into an `Adr`, or finds every structural problem with them.
-fn parse_adr_files(files: &[AdrFile]) -> Result<Vec<Adr>, Vec<Problem>>;
+pub(super) fn parse_adr_files(files: &[AdrFile]) -> Result<Vec<Adr>, Vec<Problem>>;
 
 /// Reads `tags.yaml`.
 fn load_tags_file(root: &Path) -> io::Result<String>;
 
 /// Parses the text of `tags.yaml` into a map from tag to ADR numbers, or finds every structural
 /// problem with it.
-fn parse_tags_file(text: &str) -> Result<Tags, Vec<Problem>>;
+pub(super) fn parse_tags_file(text: &str) -> Result<Tags, Vec<Problem>>;
 
 /// Reads every ADR and `tags.yaml`, or finds every structural problem with them.
 pub(super) fn load_records(root: &Path) -> io::Result<Result<Records, Vec<Problem>>>;

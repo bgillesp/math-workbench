@@ -73,9 +73,11 @@ restates whatever still holds from the ADRs it replaces, so the current decision
 one document.
 
 `cargo xtask check-docs` checks the file names, the front matter, the supersede links, and
-`tags.yaml`, and it reports any front matter left as the template has it. Two branches that each add
-an ADR take the same number, so the second to merge fails the check once it's up to date with
-`main`, and its ADR is renumbered by hand.
+`tags.yaml`, and it reports any front matter left as the template has it. It checks each file's
+structure first, such as a missing field or a malformed `id`, and checks the ADRs against their file
+names and each other only once every file passes, so fixing one round of problems can show another.
+Two branches that each add an ADR take the same number, so the second to merge fails the check once
+it's up to date with `main`, and its ADR is renumbered by hand.
 
 `cargo xtask adr` also prints views of the ADRs:
 
@@ -83,6 +85,9 @@ an ADR take the same number, so the second to merge fails the check once it's up
   `--tags` groups them by tag, with any that have no tags under `(no tags)`, `--tags=graph,wires`
   groups them under just those tags, and `--verbose` adds each path and summary.
 - `adr tags` lists every tag.
+
+If any file has a structural problem, `adr list` prints the problems instead of a list, since a list
+missing an ADR could mislead a reader. `adr tags` needs only `tags.yaml` to be well formed.
 
 ADRs and design docs cite ADRs by id in prose, as in `ADR-0003`, rather than with links, since a
 link breaks when its target moves to `superseded/`, and fixing it would mean editing a frozen
