@@ -97,8 +97,10 @@ for every value:
 
 - Each entry is `key: value`, and the value may be empty. Lines indented with spaces continue the
   value, whether it's quoted or not, and fold into single spaces. A blank line or `#` comment line
-  ends the value and is otherwise skipped. Anything else is malformed, including a line indented
-  with a tab, and an indented line with no value to continue.
+  ends the value and is otherwise skipped. A comment line starts with `#`, so it ends a value even
+  inside quotes, and an indented line starting with `#` continues the value like any other.
+  Anything else is malformed, including a line indented with a tab, and an indented line with no
+  value to continue.
 - A repeated key is a problem, since YAML 1.2 requires keys to be unique.
 - A value may be wrapped in double quotes, and means the same either way, so `date: "2026-11-02"`
   reads as a date.
@@ -126,8 +128,12 @@ it.
 
 These rules were compared against PyYAML on random values built from YAML's special characters, on
 one line and across several, and everything they accept reads as the same text. The exception is a
-whole value that reads as a number, boolean, or date, such as `title: 123`, which is harmless here.
-The blank line, comment, and tab cases were checked by hand against PyYAML and Psych.
+whole value that a YAML parser reads as something other than a string: a number, boolean, or date,
+such as `title: 123`, or null, which is how it reads an empty value. A few numbers don't keep their
+text, as when PyYAML reads `012` as 10. In values these are unlikely, and an empty value means none
+either way, so the reader accepts them. In keys they could merge two tags, since PyYAML reads both
+`on` and `yes` as `true`, so the tag rule under "`tags.yaml`" rules them out. The blank line,
+comment, and tab cases were checked by hand against PyYAML and Psych.
 
 The reader builds a map from key to value as it goes, which is how it finds a repeated key, and
 reports problems as `yaml::Error`, with variants for a malformed line, a repeated key, a bad closing
@@ -146,7 +152,10 @@ graph: ADR-0001 ADR-0003
 wires: ADR-0003
 ```
 
-A tag is lowercase letters, digits, and hyphens. Keying by tag means the existing tags are in view
+A tag starts with a lowercase letter, continues with lowercase letters, digits, and hyphens, and
+isn't `true`, `false`, `yes`, `no`, `on`, `off`, `y`, `n`, or `null`, which YAML 1.1 reads as
+booleans or null. So a YAML parser reads every tag as a string, and two tags can't become the same
+key. Keying by tag means the existing tags are in view
 while tagging an ADR, which takes over from the note `adr new` printed about near-duplicates, and
 renaming a tag is a one-line edit. An ADR doesn't need a tag, but one with no tags can't be found by
 tag, so the guide asks for at least one by convention. Order isn't checked, and neither is a tag
@@ -567,15 +576,17 @@ Format, in the third PR:
 
 - the reader folds lines indented with spaces into a value with single spaces, quoted or not,
   including a value that starts on the line after its key;
-- a blank line or `#` comment line ends a value and is otherwise skipped, so an indented line after
-  one is malformed;
+- a blank line or `#` comment line ends a value, even inside quotes, and is otherwise skipped, so an
+  indented line after one is malformed, while an indented line starting with `#` continues a value;
 - a line indented with a tab is malformed;
 - it treats `x` and `"x"` as the same value, and accepts an empty value;
 - it reports a line that isn't an entry, a repeated key, a quoted value with no closing quote or
   with text after it, a value containing `"` or `\`, and a non-empty unquoted value that contains
   `:` or `#` or doesn't start with a letter or digit, each as a structural problem;
 - an empty `supersedes` lists no ADRs, without a problem;
-- `tags.yaml` is read as tags keyed to ADRs, so `graph: ADR-0001 ADR-0003` tags both ADRs.
+- `tags.yaml` is read as tags keyed to ADRs, so `graph: ADR-0001 ADR-0003` tags both ADRs;
+- a tag that doesn't start with a lowercase letter, or that YAML reads as a boolean or null, is a
+  structural problem.
 
 The docs listed above describe the new format and commands.
 
