@@ -48,23 +48,28 @@ once, when it's created:
 ---
 id: ADR-0003
 title: "Wire types: checked on connect"
-summary: "Every wire has a static type, and connecting two ports checks compatibility, so a
-  mistyped connection is rejected before anything is evaluated."
+summary: Every wire has a static type, and connecting two ports checks compatibility, so a
+  mistyped connection is rejected before anything is evaluated.
 date: 2026-11-02
 supersedes: ADR-0001
 ---
 ```
 
-The `title` and `summary` are double-quoted, and the summary, a sentence or two of at most 300
-characters, may continue on indented lines. `supersedes` is there only for an ADR that replaces
-earlier ones.
+The summary is a sentence or two of at most 300 characters. Any value may continue on indented
+lines, and goes in double quotes if it contains `:` or `#` or starts with anything but a letter or
+digit, as the title does here. No value can contain `"` or `\`. These rules keep the front matter to
+flat YAML that a YAML parser reads the same way. `supersedes` is there only for an ADR that replaces
+earlier ones, and lists their ids separated by spaces.
 
-Tags say broadly what each ADR affects. They live in `decisions/tags.yaml`, with at most one entry
-per ADR, sorted by id, as in `ADR-0003: graph, wires`, and a tag is lowercase letters, digits, and
-hyphens. Unlike the ADRs, `tags.yaml` is a living file: tags can be added, renamed, or merged in any
-PR as the architecture grows, and a superseded ADR keeps its tags. There's no list of allowed tags,
-so reuse an existing tag where one fits. An ADR doesn't need a tag, but one with no tags can't be
-found by tag, so give each ADR at least one.
+Tags say broadly what each ADR affects. They live in `decisions/tags.yaml`, with a line for each tag
+listing its ADRs, as in `graph: ADR-0001 ADR-0003`. A tag starts with a lowercase letter, continues
+with lowercase letters, digits, and hyphens, and can't be a word YAML reads as a boolean or null,
+such as `on` or `null`. Unlike the ADRs, `tags.yaml` is a living file: tags can be added, renamed,
+or merged in any PR as the architecture grows, and a superseded ADR keeps its tags. There's no list
+of allowed tags, but the existing ones are in view in the file, so reuse one where it fits. An ADR
+doesn't need a tag, but one with no tags can't be found by tag, so give each ADR at least one. Two
+branches that add the same new tag in different places merge cleanly, and `check-docs` then reports
+the repeated tag, so its two lines need joining by hand.
 
 To write an ADR, copy the [template](../templates/adr.md) and follow the steps in its comment. The
 tooling only reads ADRs, so creating one, moving the ones it supersedes to `superseded/`, and adding
