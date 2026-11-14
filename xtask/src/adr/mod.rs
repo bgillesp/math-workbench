@@ -232,6 +232,20 @@ fn parse_id(id: &str) -> Option<u32> {
     canonical_number(id.strip_prefix("ADR-")?)
 }
 
+/// The numbers in a list of ids separated by spaces, as `supersedes` and `tags.yaml` write them,
+/// and the entries that aren't ids.
+fn parse_ids(text: &str) -> (Vec<u32>, Vec<&str>) {
+    let mut numbers = Vec::new();
+    let mut bad = Vec::new();
+    for entry in text.split_whitespace() {
+        match parse_id(entry) {
+            Some(number) => numbers.push(number),
+            None => bad.push(entry),
+        }
+    }
+    (numbers, bad)
+}
+
 /// The number in an ADR file name like `0003-short-title.md`, whose slug is lowercase letters,
 /// digits, and hyphens.
 fn file_number(name: &str) -> Option<u32> {
@@ -248,19 +262,21 @@ fn canonical_number(digits: &str) -> Option<u32> {
     (format!("{number:04}") == digits).then_some(number)
 }
 
-/// Whether `tag` is well formed: lowercase letters, digits, and hyphens.
+/// The words YAML 1.1 reads as booleans or null, which can't be tags.
+const YAML_WORDS: [&str; 9] = ["true", "false", "yes", "no", "on", "off", "y", "n", "null"];
+
+/// Whether `tag` is well formed: a lowercase letter, then lowercase letters, digits, and hyphens,
+/// and not one of `YAML_WORDS`. A YAML parser reads any such key as a string, so no two tags in
+/// `tags.yaml` can become the same key.
 fn is_tag(tag: &str) -> bool {
-    !tag.is_empty() && tag.bytes().all(is_slug_byte)
+    tag.starts_with(|c: char| c.is_ascii_lowercase())
+        && tag.bytes().all(is_slug_byte)
+        && !YAML_WORDS.contains(&tag)
 }
 
 /// Whether `byte` can appear in a tag or a file name's slug.
 fn is_slug_byte(byte: u8) -> bool {
     byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'
-}
-
-/// The tags in a `tags.yaml` value, which separates them with commas.
-fn split_tags(value: &str) -> impl Iterator<Item = &str> {
-    value.split(',').map(str::trim)
 }
 
 #[cfg(test)]

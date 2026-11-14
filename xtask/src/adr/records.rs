@@ -7,13 +7,10 @@ use std::io;
 use std::path::Path;
 
 use super::check::{Problem, ProblemKind};
-use super::{ADR_DIR, AdrFile, Dir, TAGS_PATH, adr_path, is_tag, parse_id, split_tags, yaml};
+use super::{ADR_DIR, AdrFile, Dir, TAGS_PATH, adr_path, is_tag, parse_id, parse_ids, yaml};
 
-/// The front matter fields every ADR must have.
+/// The front matter fields every ADR must have. `supersedes` is the only other one.
 const REQUIRED_FIELDS: [&str; 4] = ["id", "title", "summary", "date"];
-
-/// The front matter fields an ADR may leave out.
-const OPTIONAL_FIELDS: [&str; 1] = ["supersedes"];
 
 /// An ADR whose file passed the structural checks.
 #[derive(Debug, PartialEq, Eq)]
@@ -146,8 +143,42 @@ pub(super) fn parse_adr_files(files: &[AdrFile]) -> Result<Vec<Adr>, Vec<Problem
 }
 
 /// Reads an ADR's front matter, or every structural problem with it.
-fn parse_adr(_file: &AdrFile) -> Result<Adr, Vec<ProblemKind>> {
-    todo!("front matter through the new reader")
+fn parse_adr(file: &AdrFile) -> Result<Adr, Vec<ProblemKind>> {
+    let Some(block) = front_matter_block(&file.text) else {
+        return Err(vec![ProblemKind::NoFrontMatter]);
+    };
+    let (mut fields, errors) = yaml::read(block);
+    let mut problems: Vec<ProblemKind> = errors.into_iter().map(ProblemKind::Yaml).collect();
+    // A value the reader couldn't read is missing from `fields`, so it's reported here too.
+    for key in REQUIRED_FIELDS {
+        if !fields.contains_key(key) {
+            problems.push(ProblemKind::MissingField { key: key.to_string() });
+        }
+    }
+    let [id, title, summary, date] = REQUIRED_FIELDS.map(|key| fields.remove(key));
+    let supersedes = fields.remove("supersedes").unwrap_or_default();
+    problems.extend(fields.into_keys().map(|key| ProblemKind::UnknownKey { key }));
+    let number = id.as_deref().and_then(parse_id);
+    if let (Some(id), None) = (&id, number) {
+        problems.push(ProblemKind::BadId { value: id.clone() });
+    }
+    let (supersedes, bad) = parse_ids(&supersedes);
+    problems.extend(
+        bad.into_iter().map(|entry| ProblemKind::BadSupersedesEntry { entry: entry.to_string() }),
+    );
+    match (number, title, summary, date) {
+        (Some(number), Some(title), Some(summary), Some(date)) if problems.is_empty() => Ok(Adr {
+            dir: file.dir,
+            name: file.name.clone(),
+            number,
+            title,
+            summary,
+            date,
+            supersedes,
+            tags: Vec::new(),
+        }),
+        _ => Err(problems),
+    }
 }
 
 /// The text between the `---` line that opens `text` and the next `---` line.
@@ -174,8 +205,24 @@ fn load_tags_file(root: &Path) -> io::Result<String> {
 
 /// Parses the text of `tags.yaml` into a map from tag to ADR numbers, or finds every structural
 /// problem with it.
-pub(super) fn parse_tags_file(_text: &str) -> Result<Tags, Vec<Problem>> {
-    todo!("tags.yaml keyed by tag")
+pub(super) fn parse_tags_file(text: &str) -> Result<Tags, Vec<Problem>> {
+    let (entries, errors) = yaml::read(text);
+    let mut kinds: Vec<ProblemKind> = errors.into_iter().map(ProblemKind::Yaml).collect();
+    let mut tags = Tags::new();
+    for (tag, value) in entries {
+        if !is_tag(&tag) {
+            kinds.push(ProblemKind::BadTag { tag: tag.clone() });
+        }
+        let (numbers, bad) = parse_ids(&value);
+        for entry in bad {
+            kinds.push(ProblemKind::BadTagsEntry { tag: tag.clone(), entry: entry.to_string() });
+        }
+        tags.insert(tag, numbers.into_iter().collect());
+    }
+    if kinds.is_empty() {
+        return Ok(tags);
+    }
+    Err(kinds.into_iter().map(|kind| Problem { path: TAGS_PATH.to_string(), kind }).collect())
 }
 
 /// `err`, with the repository-relative path it happened at in its message.

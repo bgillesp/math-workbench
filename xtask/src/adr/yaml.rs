@@ -53,8 +53,87 @@ impl fmt::Display for Error {
 
 /// Reads each key in `text` with its value, and everything that doesn't read as flat YAML, in
 /// order. A value that can't be read is left out, and a repeated key keeps its first value.
-pub(super) fn read(_text: &str) -> (BTreeMap<String, String>, Vec<Error>) {
-    todo!("the flat YAML reader")
+pub(super) fn read(text: &str) -> (BTreeMap<String, String>, Vec<Error>) {
+    let mut values = BTreeMap::new();
+    let mut errors = Vec::new();
+    // The entry whose value can still continue: its key, and its lines so far, trimmed.
+    let mut open: Option<(String, Vec<&str>)> = None;
+    for line in text.lines() {
+        let content = line.trim();
+        let indent = &line[..line.len() - line.trim_start().len()];
+        // A line indented with spaces continues the open value.
+        if let Some((_, lines)) = &mut open
+            && !content.is_empty()
+            && !indent.is_empty()
+            && indent.bytes().all(|byte| byte == b' ')
+        {
+            lines.push(content);
+            continue;
+        }
+        // Any other line ends it.
+        if let Some((key, lines)) = open.take() {
+            close(key, &lines, &mut values, &mut errors);
+        }
+        if content.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        match split_entry(line) {
+            Some((key, value)) => open = Some((key, vec![value])),
+            None => errors.push(Error::MalformedLine { line: content.to_string() }),
+        }
+    }
+    if let Some((key, lines)) = open {
+        close(key, &lines, &mut values, &mut errors);
+    }
+    (values, errors)
+}
+
+/// The key and trimmed value of an unindented `key: value` line.
+fn split_entry(line: &str) -> Option<(String, &str)> {
+    if line.starts_with(char::is_whitespace) {
+        return None;
+    }
+    let (key, value) = line.split_once(':')?;
+    let key = key.trim_end();
+    if key.is_empty() || !(value.is_empty() || value.starts_with(char::is_whitespace)) {
+        return None;
+    }
+    Some((key.to_string(), value.trim()))
+}
+
+/// Adds the value of `key`, folded from its trimmed `lines`, to `values`, or adds the error that
+/// keeps it out to `errors`.
+fn close(
+    key: String,
+    lines: &[&str],
+    values: &mut BTreeMap<String, String>,
+    errors: &mut Vec<Error>,
+) {
+    // Only the first line can be empty, when the value starts on the line after its key.
+    let lines: Vec<&str> = lines.iter().copied().filter(|line| !line.is_empty()).collect();
+    let folded = lines.join(" ");
+    let unquoted = folded.strip_prefix('"');
+    let value = match unquoted {
+        Some(rest) => rest.strip_suffix('"'),
+        None => Some(folded.as_str()),
+    };
+    let error = match value {
+        _ if values.contains_key(&key) => Error::DuplicateKey { key },
+        None => Error::BadClosingQuote { key },
+        Some(value) if value.contains(['"', '\\']) => Error::QuoteOrBackslash { key },
+        Some(value) if unquoted.is_none() && needs_quotes(value) => Error::NeedsQuotes { key },
+        Some(value) => {
+            values.insert(key, value.to_string());
+            return;
+        },
+    };
+    errors.push(error);
+}
+
+/// Whether `value`, written without quotes, would read differently in a YAML parser, as it can when
+/// it contains `:` or `#` or starts with something other than a letter or digit.
+fn needs_quotes(value: &str) -> bool {
+    !value.is_empty() && (value.contains([':', '#']) || !value.starts_with(char::is_alphanumeric))
 }
 
 #[cfg(test)]

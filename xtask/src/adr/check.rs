@@ -100,7 +100,11 @@ impl fmt::Display for ProblemKind {
                 write!(f, "`date` is `{value}`, not a date like `2026-11-02`")
             },
             Self::BadSupersedesEntry { entry } => {
-                write!(f, "`supersedes` lists `{entry}`, which isn't an id like `ADR-0003`")
+                write!(
+                    f,
+                    "`supersedes` lists `{entry}`, which isn't an id like `ADR-0003`; ids are \
+                     separated by spaces"
+                )
             },
             Self::SupersedesMissing { number } => {
                 write!(f, "supersedes ADR-{number:04}, which doesn't exist")
