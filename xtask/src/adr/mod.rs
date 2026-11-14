@@ -330,20 +330,20 @@ mod tests {
             valid(Superseded, 2, &[1]),
             valid(Active, 3, &[2]),
         ];
-        let root = repository("chain", &files, "ADR-0003: graph\n");
+        let root = repository("chain", &files, "graph: ADR-0003\n");
         assert_eq!(check_docs(&root.0).unwrap(), Vec::<String>::new());
     }
 
     #[test]
     fn check_docs_reports_consistency_problems_once_the_structure_is_sound() {
         let files = [bad_date(), valid(Active, 3, &[9])];
-        let root = repository("consistency", &files, "ADR-0008: graph\n");
+        let root = repository("consistency", &files, "graph: ADR-0008\n");
         assert_eq!(
             sorted(check_docs(&root.0).unwrap()),
             sorted(vec![
                 message(&bad_date().path(), BadDate { value: "soon".into() }),
                 message(&valid(Active, 3, &[9]).path(), SupersedesMissing { number: 9 }),
-                message(TAGS_PATH, TagsForMissingAdr { number: 8 }),
+                message(TAGS_PATH, TagsForMissingAdr { tag: "graph".into(), number: 8 }),
             ])
         );
     }
@@ -351,23 +351,20 @@ mod tests {
     #[test]
     fn check_docs_reports_no_consistency_problems_alongside_structural_ones() {
         let files = [bad_date(), no_block(), valid(Active, 3, &[9])];
-        let root = repository("structural", &files, "ADR-0008: Wires\n");
+        let root = repository("structural", &files, "Wires: ADR-0008\n");
         assert_eq!(
             sorted(check_docs(&root.0).unwrap()),
             sorted(vec![
                 message(&no_block().path(), NoFrontMatter),
-                message(TAGS_PATH, BadTag { number: 8, tag: "Wires".into() }),
+                message(TAGS_PATH, BadTag { tag: "Wires".into() }),
             ])
         );
         // A structural problem in `tags.yaml` alone is enough.
         let files = [bad_date(), valid(Active, 3, &[9])];
-        let root = repository("structural-tags", &files, "ADR-0003: Wires\n");
+        let root = repository("structural-tags", &files, "Wires: ADR-0003\n");
         assert_eq!(
             check_docs(&root.0).unwrap(),
-            [message(
-                TAGS_PATH,
-                BadTag { number: 3, tag: "Wires".into() }
-            )]
+            [message(TAGS_PATH, BadTag { tag: "Wires".into() })]
         );
     }
 
@@ -376,13 +373,10 @@ mod tests {
         let list = || Command::List(list::Options::default());
         let root = repository("list-adr", &[valid(Active, 1, &[]), no_block()], "");
         assert_eq!(execute(&root.0, list()), Err(vec![message(&no_block().path(), NoFrontMatter)]));
-        let root = repository("list-tags", &[valid(Active, 1, &[])], "ADR-0001: Wires\n");
+        let root = repository("list-tags", &[valid(Active, 1, &[])], "Wires: ADR-0001\n");
         assert_eq!(
             execute(&root.0, list()),
-            Err(vec![message(
-                TAGS_PATH,
-                BadTag { number: 1, tag: "Wires".into() }
-            )])
+            Err(vec![message(TAGS_PATH, BadTag { tag: "Wires".into() })])
         );
     }
 
@@ -425,20 +419,17 @@ mod tests {
     fn adr_tags_reads_only_tags_yaml() {
         // ADR-0002 can't be read and ADR-0009 doesn't exist, and their tags still print.
         let files = [valid(Active, 1, &[]), no_block()];
-        let tags = "ADR-0001: graph\nADR-0002: wires\nADR-0009: stale\n";
+        let tags = "graph: ADR-0001\nwires: ADR-0002\nstale: ADR-0009\n";
         let root = repository("tags-only", &files, tags);
         assert_eq!(execute(&root.0, Command::Tags), Ok("graph\nstale\nwires\n".to_string()));
     }
 
     #[test]
     fn adr_tags_fails_on_structural_problems_in_tags_yaml() {
-        let root = repository("tags-bad", &[valid(Active, 1, &[])], "ADR-0001: Wires\n");
+        let root = repository("tags-bad", &[valid(Active, 1, &[])], "Wires: ADR-0001\n");
         assert_eq!(
             execute(&root.0, Command::Tags),
-            Err(vec![message(
-                TAGS_PATH,
-                BadTag { number: 1, tag: "Wires".into() }
-            )])
+            Err(vec![message(TAGS_PATH, BadTag { tag: "Wires".into() })])
         );
     }
 

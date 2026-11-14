@@ -1,7 +1,7 @@
 //! Loading the ADRs and `tags.yaml`. Each has a step that reads it from disk and a step that parses
 //! it, running the structural checks, and `Records` brings the results together.
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -146,87 +146,8 @@ pub(super) fn parse_adr_files(files: &[AdrFile]) -> Result<Vec<Adr>, Vec<Problem
 }
 
 /// Reads an ADR's front matter, or every structural problem with it.
-fn parse_adr(file: &AdrFile) -> Result<Adr, Vec<ProblemKind>> {
-    let Some(block) = front_matter_block(&file.text) else {
-        return Err(vec![ProblemKind::NoFrontMatter]);
-    };
-    let (entries, errors) = yaml::read(block);
-    let mut problems = Vec::new();
-    // The keys that appear, including those whose values couldn't be read.
-    let mut keys = HashSet::new();
-    for error in errors {
-        problems.push(match error {
-            yaml::Error::MalformedLine { line } => ProblemKind::MalformedLine { line },
-            yaml::Error::UnterminatedQuote { key } => {
-                keys.insert(key.clone());
-                ProblemKind::UnterminatedQuote { key }
-            },
-            yaml::Error::QuoteOrBackslash { key } => {
-                keys.insert(key.clone());
-                ProblemKind::QuoteOrBackslash { key }
-            },
-        });
-    }
-    let mut number = None;
-    let mut title = None;
-    let mut summary = None;
-    let mut date = None;
-    let mut supersedes = Vec::new();
-    for yaml::Entry { key, value } in entries {
-        let name = key.as_str();
-        if !REQUIRED_FIELDS.contains(&name) && !OPTIONAL_FIELDS.contains(&name) {
-            problems.push(ProblemKind::UnknownKey { key });
-            continue;
-        }
-        if !keys.insert(key.clone()) {
-            problems.push(ProblemKind::DuplicateKey { key });
-            continue;
-        }
-        let text = value.text();
-        match key.as_str() {
-            "id" => match parse_id(text) {
-                Some(parsed) => number = Some(parsed),
-                None => problems.push(ProblemKind::BadId { value: text.to_string() }),
-            },
-            "title" | "summary" if !text.is_empty() && matches!(value, yaml::Value::Plain(_)) => {
-                problems.push(ProblemKind::NotQuoted { key });
-            },
-            "title" => title = Some(text.to_string()),
-            "summary" => summary = Some(text.to_string()),
-            "date" => date = Some(text.to_string()),
-            _ if text.is_empty() => problems.push(ProblemKind::EmptyField { key }),
-            _ => {
-                for entry in text.split(',').map(str::trim) {
-                    match parse_id(entry) {
-                        Some(parsed) => supersedes.push(parsed),
-                        None => problems
-                            .push(ProblemKind::BadSupersedesEntry { entry: entry.to_string() }),
-                    }
-                }
-            },
-        }
-    }
-    for key in REQUIRED_FIELDS {
-        if !keys.contains(key) {
-            problems.push(ProblemKind::MissingField { key: key.to_string() });
-        }
-    }
-    if problems.is_empty()
-        && let (Some(number), Some(title), Some(summary), Some(date)) =
-            (number, title, summary, date)
-    {
-        return Ok(Adr {
-            dir: file.dir,
-            name: file.name.clone(),
-            number,
-            title,
-            summary,
-            date,
-            supersedes,
-            tags: Vec::new(),
-        });
-    }
-    Err(problems)
+fn parse_adr(_file: &AdrFile) -> Result<Adr, Vec<ProblemKind>> {
+    todo!("front matter through the new reader")
 }
 
 /// The text between the `---` line that opens `text` and the next `---` line.
@@ -253,43 +174,8 @@ fn load_tags_file(root: &Path) -> io::Result<String> {
 
 /// Parses the text of `tags.yaml` into a map from tag to ADR numbers, or finds every structural
 /// problem with it.
-pub(super) fn parse_tags_file(text: &str) -> Result<Tags, Vec<Problem>> {
-    let (entries, errors) = yaml::read(text);
-    let mut kinds: Vec<ProblemKind> = errors
-        .into_iter()
-        .map(|error| match error {
-            yaml::Error::MalformedLine { line } => ProblemKind::TagsMalformedLine { line },
-            yaml::Error::UnterminatedQuote { key } => ProblemKind::UnterminatedQuote { key },
-            yaml::Error::QuoteOrBackslash { key } => ProblemKind::QuoteOrBackslash { key },
-        })
-        .collect();
-    let mut tags = Tags::new();
-    let mut entered = BTreeSet::new();
-    for entry in &entries {
-        let Some(number) = parse_id(&entry.key) else {
-            let line = match &entry.value {
-                yaml::Value::Plain(value) => format!("{}: {value}", entry.key),
-                yaml::Value::Quoted(value) => format!("{}: \"{value}\"", entry.key),
-            };
-            kinds.push(ProblemKind::TagsMalformedLine { line });
-            continue;
-        };
-        if !entered.insert(number) {
-            kinds.push(ProblemKind::DuplicateTagsEntry { number });
-        } else if !entry.value.text().is_empty() {
-            for tag in split_tags(entry.value.text()) {
-                if is_tag(tag) {
-                    tags.entry(tag.to_string()).or_default().insert(number);
-                } else {
-                    kinds.push(ProblemKind::BadTag { number, tag: tag.to_string() });
-                }
-            }
-        }
-    }
-    if kinds.is_empty() {
-        return Ok(tags);
-    }
-    Err(kinds.into_iter().map(|kind| Problem { path: TAGS_PATH.to_string(), kind }).collect())
+pub(super) fn parse_tags_file(_text: &str) -> Result<Tags, Vec<Problem>> {
+    todo!("tags.yaml keyed by tag")
 }
 
 /// `err`, with the repository-relative path it happened at in its message.
@@ -303,9 +189,8 @@ mod tests {
     use crate::adr::Dir::{Active, Superseded};
     use crate::adr::adr_path;
     use crate::adr::check::ProblemKind::{
-        BadId, BadSupersedesEntry, BadTag, DuplicateKey, DuplicateTagsEntry, EmptyField,
-        MalformedLine, MissingField, NoFrontMatter, NotQuoted, QuoteOrBackslash, TagsMalformedLine,
-        UnknownKey, UnterminatedQuote,
+        BadId, BadSupersedesEntry, BadTag, BadTagsEntry, MissingField, NoFrontMatter, UnknownKey,
+        Yaml,
     };
     use crate::adr::fixtures::{
         SAMPLE_TAGS, TempRoot, file, records_from, sample_files, valid, with_front_matter,
@@ -353,8 +238,8 @@ mod tests {
     fn front_matter_reads_every_field() {
         let name = "0003-wire-types.md";
         let text = "---\nid: ADR-0003\ntitle: \"Wire types: checked on connect\"\n\
-                    summary: \"Every wire has a static type.\"\ndate: 2026-11-02\n\
-                    supersedes: ADR-0001, ADR-0002\n---\n\n# ADR-0003\n";
+                    summary: Every wire has a static\n  type.\ndate: 2026-11-02\n\
+                    supersedes: ADR-0001 ADR-0002\n---\n\n# ADR-0003\n";
         assert_eq!(
             parse_adr_files(&[file(Active, name, text)]).unwrap(),
             [Adr {
@@ -368,15 +253,6 @@ mod tests {
                 tags: vec![],
             }]
         );
-    }
-
-    #[test]
-    fn quoted_values_continue_on_indented_lines() {
-        let adr = record(
-            "id: ADR-0001\ntitle: \"T\"\nsummary: \"Every wire has a\n  static type,\n    and \
-             connecting checks it.\"\ndate: 2026-11-02\n",
-        );
-        assert_eq!(adr.summary, "Every wire has a static type, and connecting checks it.");
     }
 
     #[test]
@@ -394,40 +270,13 @@ mod tests {
     fn reader_problems_and_unknown_keys_are_structural() {
         assert_eq!(
             kinds(&format!("id: ADR-0001\n{FIELDS}not a field\n")),
-            [MalformedLine { line: "not a field".into() }]
+            [Yaml(yaml::Error::MalformedLine {
+                line: "not a field".into()
+            })]
         );
         assert_eq!(
             kinds(&format!("id: ADR-0001\n{FIELDS}area: graph\n")),
             [UnknownKey { key: "area".into() }]
-        );
-        assert_eq!(
-            kinds(&format!("id: ADR-0001\n{FIELDS}summary: \"Again.\"\n")),
-            [DuplicateKey { key: "summary".into() }]
-        );
-    }
-
-    #[test]
-    fn quoting_is_structural() {
-        let front_matter = |title: &str, summary: &str| {
-            format!("id: ADR-0001\ntitle: {title}\nsummary: {summary}\ndate: 2026-11-02\n")
-        };
-        assert_eq!(kinds(&front_matter("Unquoted", "\"S.\"")), [NotQuoted { key: "title".into() }]);
-        assert_eq!(
-            kinds(&front_matter("\"T\"", "Unquoted.")),
-            [NotQuoted { key: "summary".into() }]
-        );
-        assert_eq!(
-            kinds(&front_matter("\"T\"", "\"A \"quoted\" word.\"")),
-            [QuoteOrBackslash { key: "summary".into() }]
-        );
-        assert_eq!(
-            kinds(&front_matter("\"Back\\slash\"", "\"S.\"")),
-            [QuoteOrBackslash { key: "title".into() }]
-        );
-        // One mistake is one problem, so the unreadable value doesn't also count as missing.
-        assert_eq!(
-            kinds(&front_matter("\"T\"", "\"Never closed.")),
-            [UnterminatedQuote { key: "summary".into() }]
         );
     }
 
@@ -459,20 +308,14 @@ mod tests {
 
     #[test]
     fn supersedes_entries_have_to_be_ids() {
+        // Ids are separated by spaces, so a comma stays with the id before it.
         assert_eq!(
-            kinds(&format!("id: ADR-0002\n{FIELDS}supersedes: 1\n")),
-            [BadSupersedesEntry { entry: "1".into() }]
+            kinds(&format!("id: ADR-0003\n{FIELDS}supersedes: ADR-0001, ADR-0002\n")),
+            [BadSupersedesEntry { entry: "ADR-0001,".into() }]
         );
-        assert_eq!(
-            kinds(&format!("id: ADR-0002\n{FIELDS}supersedes: ADR-0001, x\n")),
-            [BadSupersedesEntry { entry: "x".into() }]
-        );
-        // A blank `supersedes` stays a problem until the format allows it, and only a structural
-        // check can see it, since an `Adr` with no successors looks the same.
-        assert_eq!(
-            kinds(&format!("id: ADR-0002\n{FIELDS}supersedes:\n")),
-            [EmptyField { key: "supersedes".into() }]
-        );
+        // An empty `supersedes`, as the template has it, lists no ADRs.
+        let adr = record(&format!("id: ADR-0002\n{FIELDS}supersedes:\n"));
+        assert_eq!(adr.supersedes, Vec::<u32>::new());
     }
 
     #[test]
@@ -516,7 +359,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            parse_tags_file("ADR-0008: stale\n").unwrap(),
+            parse_tags_file("stale: ADR-0008\n").unwrap(),
             Tags::from([("stale".to_string(), BTreeSet::from([8]))])
         );
     }
@@ -530,6 +373,14 @@ mod tests {
                 ("file-format".to_string(), BTreeSet::from([2])),
                 ("graph".to_string(), BTreeSet::from([1, 3])),
                 ("wires".to_string(), BTreeSet::from([3])),
+            ])
+        );
+        // The header comment, digits after the first letter, and a tag with no ADRs are all fine.
+        assert_eq!(
+            parse_tags_file("# Each line is a tag.\nutf-8: ADR-0002\nunused:\n").unwrap(),
+            Tags::from([
+                ("unused".to_string(), BTreeSet::new()),
+                ("utf-8".to_string(), BTreeSet::from([2])),
             ])
         );
     }
@@ -556,29 +407,24 @@ mod tests {
 
     #[test]
     fn problems_in_tags_yaml_are_structural() {
-        assert_eq!(tags_kinds("not a line\n"), [TagsMalformedLine { line: "not a line".into() }]);
+        // Two branches that add the same tag in different places merge cleanly, so the repeated
+        // key has to fail rather than drop one branch's ADR from the tag.
         assert_eq!(
-            tags_kinds("graph: ADR-0001\n"),
-            [TagsMalformedLine { line: "graph: ADR-0001".into() }]
+            tags_kinds("graph: ADR-0001\nwires: ADR-0002\ngraph: ADR-0003\n"),
+            [Yaml(yaml::Error::DuplicateKey { key: "graph".into() })]
         );
+        // A YAML parser would read `2026` as a number and `on` as `true`.
         assert_eq!(
-            tags_kinds("ADR-0001: \"never closed\n"),
-            [UnterminatedQuote { key: "ADR-0001".into() }]
-        );
-        assert_eq!(
-            tags_kinds("ADR-0001: \"a \"b\" c\"\n"),
-            [QuoteOrBackslash { key: "ADR-0001".into() }]
-        );
-        assert_eq!(
-            tags_kinds("ADR-0001: graph\nADR-0001: wires\n"),
-            [DuplicateTagsEntry { number: 1 }]
-        );
-        assert_eq!(
-            tags_kinds("ADR-0001: graph, Wires, two words\n"),
+            tags_kinds("Wires: ADR-0001\n2026: ADR-0001\non: ADR-0001\n"),
             [
-                BadTag { number: 1, tag: "Wires".into() },
-                BadTag { number: 1, tag: "two words".into() },
+                BadTag { tag: "2026".into() },
+                BadTag { tag: "Wires".into() },
+                BadTag { tag: "on".into() },
             ]
+        );
+        assert_eq!(
+            tags_kinds("graph: ADR-0001, ADR-0002\n"),
+            [BadTagsEntry { tag: "graph".into(), entry: "ADR-0001,".into() }]
         );
     }
 
@@ -602,7 +448,7 @@ mod tests {
         for adr in &files {
             root.write_adr(adr);
         }
-        root.write(TAGS_PATH, "not a line\nADR-0003: Wires\n");
+        root.write(TAGS_PATH, "not a line\nWires: ADR-0003\n");
         let second = &adr_path(Active, "0002-two-problems.md");
         assert_eq!(
             sorted(load_records(&root.0).unwrap().unwrap_err()),
@@ -614,8 +460,8 @@ mod tests {
                     &adr_path(Superseded, "0004-unknown-key.md"),
                     UnknownKey { key: "area".into() }
                 ),
-                problem(TAGS_PATH, TagsMalformedLine { line: "not a line".into() }),
-                problem(TAGS_PATH, BadTag { number: 3, tag: "Wires".into() }),
+                problem(TAGS_PATH, Yaml(yaml::Error::MalformedLine { line: "not a line".into() })),
+                problem(TAGS_PATH, BadTag { tag: "Wires".into() }),
             ])
         );
     }
@@ -638,7 +484,7 @@ mod tests {
         for adr in &files {
             root.write_adr(adr);
         }
-        root.write(TAGS_PATH, "ADR-0001: graph\n");
+        root.write(TAGS_PATH, "graph: ADR-0001\n");
         root.write(&format!("{ADR_DIR}/active/notes/ignored.md"), "a directory, not an ADR\n");
         assert_eq!(
             load_adr_files(&root.0).unwrap(),
@@ -648,6 +494,6 @@ mod tests {
                 valid(Superseded, 1, &[])
             ]
         );
-        assert_eq!(load_tags_file(&root.0).unwrap(), "ADR-0001: graph\n");
+        assert_eq!(load_tags_file(&root.0).unwrap(), "graph: ADR-0001\n");
     }
 }
