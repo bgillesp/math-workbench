@@ -147,8 +147,8 @@ with a failure status if it found any. `doctor` only warns, so `just setup` alwa
   `decisions/tags.yaml`: file names like `0003-short-title.md`, the front matter schema, ids that
   match the file names and are unique, `supersedes` entries that name existing ADRs with lower
   numbers, at most one successor for each ADR, an ADR in `superseded/` exactly when a later ADR
-  supersedes it, and at most one entry in `tags.yaml` for each ADR, with well-formed tags and none
-  for an ADR that doesn't exist. The
+  supersedes it, and a line in `tags.yaml` for each tag, which has to be well formed, appear once,
+  and list only ADRs that exist. The
   [architecture and design guide](architecture-and-design.md#architecture-decision-records)
   describes the layout.
 - Design docs in `docs/design/`: file names, unique numbers, and statuses.

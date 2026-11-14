@@ -232,6 +232,20 @@ fn parse_id(id: &str) -> Option<u32> {
     canonical_number(id.strip_prefix("ADR-")?)
 }
 
+/// The numbers in a list of ids separated by spaces, as `supersedes` and `tags.yaml` write them,
+/// and the entries that aren't ids.
+fn parse_ids(text: &str) -> (Vec<u32>, Vec<&str>) {
+    let mut numbers = Vec::new();
+    let mut bad = Vec::new();
+    for entry in text.split_whitespace() {
+        match parse_id(entry) {
+            Some(number) => numbers.push(number),
+            None => bad.push(entry),
+        }
+    }
+    (numbers, bad)
+}
+
 /// The number in an ADR file name like `0003-short-title.md`, whose slug is lowercase letters,
 /// digits, and hyphens.
 fn file_number(name: &str) -> Option<u32> {
@@ -248,19 +262,21 @@ fn canonical_number(digits: &str) -> Option<u32> {
     (format!("{number:04}") == digits).then_some(number)
 }
 
-/// Whether `tag` is well formed: lowercase letters, digits, and hyphens.
+/// The words YAML 1.1 reads as booleans or null, which can't be tags.
+const YAML_WORDS: [&str; 9] = ["true", "false", "yes", "no", "on", "off", "y", "n", "null"];
+
+/// Whether `tag` is well formed: a lowercase letter, then lowercase letters, digits, and hyphens,
+/// and not one of `YAML_WORDS`. A YAML parser reads any such key as a string, so no two tags in
+/// `tags.yaml` can become the same key.
 fn is_tag(tag: &str) -> bool {
-    !tag.is_empty() && tag.bytes().all(is_slug_byte)
+    tag.starts_with(|c: char| c.is_ascii_lowercase())
+        && tag.bytes().all(is_slug_byte)
+        && !YAML_WORDS.contains(&tag)
 }
 
 /// Whether `byte` can appear in a tag or a file name's slug.
 fn is_slug_byte(byte: u8) -> bool {
     byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'
-}
-
-/// The tags in a `tags.yaml` value, which separates them with commas.
-fn split_tags(value: &str) -> impl Iterator<Item = &str> {
-    value.split(',').map(str::trim)
 }
 
 #[cfg(test)]
@@ -330,20 +346,20 @@ mod tests {
             valid(Superseded, 2, &[1]),
             valid(Active, 3, &[2]),
         ];
-        let root = repository("chain", &files, "ADR-0003: graph\n");
+        let root = repository("chain", &files, "graph: ADR-0003\n");
         assert_eq!(check_docs(&root.0).unwrap(), Vec::<String>::new());
     }
 
     #[test]
     fn check_docs_reports_consistency_problems_once_the_structure_is_sound() {
         let files = [bad_date(), valid(Active, 3, &[9])];
-        let root = repository("consistency", &files, "ADR-0008: graph\n");
+        let root = repository("consistency", &files, "graph: ADR-0008\n");
         assert_eq!(
             sorted(check_docs(&root.0).unwrap()),
             sorted(vec![
                 message(&bad_date().path(), BadDate { value: "soon".into() }),
                 message(&valid(Active, 3, &[9]).path(), SupersedesMissing { number: 9 }),
-                message(TAGS_PATH, TagsForMissingAdr { number: 8 }),
+                message(TAGS_PATH, TagsForMissingAdr { tag: "graph".into(), number: 8 }),
             ])
         );
     }
@@ -351,23 +367,20 @@ mod tests {
     #[test]
     fn check_docs_reports_no_consistency_problems_alongside_structural_ones() {
         let files = [bad_date(), no_block(), valid(Active, 3, &[9])];
-        let root = repository("structural", &files, "ADR-0008: Wires\n");
+        let root = repository("structural", &files, "Wires: ADR-0008\n");
         assert_eq!(
             sorted(check_docs(&root.0).unwrap()),
             sorted(vec![
                 message(&no_block().path(), NoFrontMatter),
-                message(TAGS_PATH, BadTag { number: 8, tag: "Wires".into() }),
+                message(TAGS_PATH, BadTag { tag: "Wires".into() }),
             ])
         );
         // A structural problem in `tags.yaml` alone is enough.
         let files = [bad_date(), valid(Active, 3, &[9])];
-        let root = repository("structural-tags", &files, "ADR-0003: Wires\n");
+        let root = repository("structural-tags", &files, "Wires: ADR-0003\n");
         assert_eq!(
             check_docs(&root.0).unwrap(),
-            [message(
-                TAGS_PATH,
-                BadTag { number: 3, tag: "Wires".into() }
-            )]
+            [message(TAGS_PATH, BadTag { tag: "Wires".into() })]
         );
     }
 
@@ -376,13 +389,10 @@ mod tests {
         let list = || Command::List(list::Options::default());
         let root = repository("list-adr", &[valid(Active, 1, &[]), no_block()], "");
         assert_eq!(execute(&root.0, list()), Err(vec![message(&no_block().path(), NoFrontMatter)]));
-        let root = repository("list-tags", &[valid(Active, 1, &[])], "ADR-0001: Wires\n");
+        let root = repository("list-tags", &[valid(Active, 1, &[])], "Wires: ADR-0001\n");
         assert_eq!(
             execute(&root.0, list()),
-            Err(vec![message(
-                TAGS_PATH,
-                BadTag { number: 1, tag: "Wires".into() }
-            )])
+            Err(vec![message(TAGS_PATH, BadTag { tag: "Wires".into() })])
         );
     }
 
@@ -425,20 +435,17 @@ mod tests {
     fn adr_tags_reads_only_tags_yaml() {
         // ADR-0002 can't be read and ADR-0009 doesn't exist, and their tags still print.
         let files = [valid(Active, 1, &[]), no_block()];
-        let tags = "ADR-0001: graph\nADR-0002: wires\nADR-0009: stale\n";
+        let tags = "graph: ADR-0001\nwires: ADR-0002\nstale: ADR-0009\n";
         let root = repository("tags-only", &files, tags);
         assert_eq!(execute(&root.0, Command::Tags), Ok("graph\nstale\nwires\n".to_string()));
     }
 
     #[test]
     fn adr_tags_fails_on_structural_problems_in_tags_yaml() {
-        let root = repository("tags-bad", &[valid(Active, 1, &[])], "ADR-0001: Wires\n");
+        let root = repository("tags-bad", &[valid(Active, 1, &[])], "Wires: ADR-0001\n");
         assert_eq!(
             execute(&root.0, Command::Tags),
-            Err(vec![message(
-                TAGS_PATH,
-                BadTag { number: 1, tag: "Wires".into() }
-            )])
+            Err(vec![message(TAGS_PATH, BadTag { tag: "Wires".into() })])
         );
     }
 

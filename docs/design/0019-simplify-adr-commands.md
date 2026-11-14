@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: implemented
 ---
 
 # Simplify the ADR Commands
@@ -97,8 +97,10 @@ for every value:
 
 - Each entry is `key: value`, and the value may be empty. Lines indented with spaces continue the
   value, whether it's quoted or not, and fold into single spaces. A blank line or `#` comment line
-  ends the value and is otherwise skipped. Anything else is malformed, including a line indented
-  with a tab, and an indented line with no value to continue.
+  ends the value and is otherwise skipped. A comment line starts with `#`, so it ends a value even
+  inside quotes, and an indented line starting with `#` continues the value like any other.
+  Anything else is malformed, including a line indented with a tab, and an indented line with no
+  value to continue.
 - A repeated key is a problem, since YAML 1.2 requires keys to be unique.
 - A value may be wrapped in double quotes, and means the same either way, so `date: "2026-11-02"`
   reads as a date.
@@ -126,8 +128,12 @@ it.
 
 These rules were compared against PyYAML on random values built from YAML's special characters, on
 one line and across several, and everything they accept reads as the same text. The exception is a
-whole value that reads as a number, boolean, or date, such as `title: 123`, which is harmless here.
-The blank line, comment, and tab cases were checked by hand against PyYAML and Psych.
+whole value that a YAML parser reads as something other than a string: a number, boolean, or date,
+such as `title: 123`, or null, which is how it reads an empty value. A few numbers don't keep their
+text, as when PyYAML reads `012` as 10. In values these are unlikely, and an empty value means none
+either way, so the reader accepts them. In keys they could merge two tags, since PyYAML reads both
+`on` and `yes` as `true`, so the tag rule under "`tags.yaml`" rules them out. The blank line,
+comment, and tab cases were checked by hand against PyYAML and Psych.
 
 The reader builds a map from key to value as it goes, which is how it finds a repeated key, and
 reports problems as `yaml::Error`, with variants for a malformed line, a repeated key, a bad closing
@@ -146,7 +152,10 @@ graph: ADR-0001 ADR-0003
 wires: ADR-0003
 ```
 
-A tag is lowercase letters, digits, and hyphens. Keying by tag means the existing tags are in view
+A tag starts with a lowercase letter, continues with lowercase letters, digits, and hyphens, and
+isn't `true`, `false`, `yes`, `no`, `on`, `off`, `y`, `n`, or `null`, which YAML 1.1 reads as
+booleans or null. So a YAML parser reads every tag as a string, and two tags can't become the same
+key. Keying by tag means the existing tags are in view
 while tagging an ADR, which takes over from the note `adr new` printed about near-duplicates, and
 renaming a tag is a one-line edit. An ADR doesn't need a tag, but one with no tags can't be found by
 tag, so the guide asks for at least one by convention. Order isn't checked, and neither is a tag
@@ -285,7 +294,7 @@ And across ADRs:
 12. An ADR is in `superseded/` if and only if some ADR lists it in `supersedes`.
 13. Each id in `tags.yaml` names an existing ADR.
 
-This takes `ProblemKind` from 27 variants to about 20, plus five in `yaml::Error`, so the check list
+This takes `ProblemKind` from 27 variants to 19, plus five in `yaml::Error`, so the check list
 itself shrinks only modestly. The savings come from having one path through it. What goes is the
 requirement that every ADR has a tags entry, the rule that `title` and `summary` are quoted, and the
 separate handling of malformed lines in `tags.yaml`. Everything about the supersede graph stays,
@@ -412,35 +421,35 @@ structural problem on a branch will stop `context` as it stops `adr list`.
 
 ### Implementation notes
 
-| File | Before (code + tests) | After the Loading PR | Role |
-|---|---|---|---|
-| `mod.rs` | 288 + 41 | 265 + 227 | Dispatch, usage, `Dir`, ids and names |
-| `records.rs` | 312 + 102 | 299 + 354 | The load and parse steps, `load_records`, `load_tags` |
-| `check.rs` | 303 + 302 | 266 + 276 | `Problem`, the consistency checks |
-| `list.rs` | 158 + 185 | 159 + 179 | `adr list` |
-| `yaml.rs` | 131 + 69 | 131 + 69 | Flat YAML entries and their errors |
-| `fixtures.rs` | 161 | 111 | Sample ADRs, one scratch directory helper |
-| `new.rs` | 368 + 221 | Removed | |
-| `print.rs` | 53 + 39 | Removed | |
-| `tags.rs` | 33 + 24 | 26 + 21 | `adr tags` |
+| File | Before (code + tests) | After the Loading PR | After the Format PR | Role |
+|---|---|---|---|---|
+| `mod.rs` | 288 + 41 | 265 + 227 | 281 + 218 | Dispatch, usage, `Dir`, ids and names |
+| `records.rs` | 312 + 102 | 299 + 354 | 232 + 314 | The load and parse steps, `load_records`, `load_tags` |
+| `check.rs` | 303 + 302 | 266 + 276 | 245 + 287 | `Problem`, the consistency checks |
+| `list.rs` | 158 + 185 | 159 + 179 | 159 + 179 | `adr list` |
+| `yaml.rs` | 131 + 69 | 131 + 69 | 138 + 92 | The flat YAML reader and its errors |
+| `fixtures.rs` | 161 | 111 | 111 | Sample ADRs, one scratch directory helper |
+| `new.rs` | 368 + 221 | Removed | Removed | |
+| `print.rs` | 53 + 39 | Removed | Removed | |
+| `tags.rs` | 33 + 24 | 26 + 21 | 26 + 21 | `adr tags` |
 
-That's from 2,790 lines to 2,383 after the Loading PR. Production code goes from 1,646 lines to
-1,146, almost all of that from removing `adr new` and `adr print`, and tests go from 1,144 to 1,237.
-The Loading PR's gain is in structure rather than size: it leaves the production code about the
-same, and adds tests for the split between the two stages. The Format PR mostly rewrites `yaml.rs`
-and the `tags.yaml` parser, so it shouldn't change these totals much.
+That's from 2,790 lines to 2,383 after the Loading PR, and 2,303 after the Format PR. Production
+code goes from 1,646 lines to 1,081, most of that from removing `adr new` and `adr print`, and
+tests go from 1,144 to 1,222. The Loading PR's gain is in structure rather than size: it leaves the
+production code about the same, and adds tests for the split between the two stages. The Format PR
+takes 65 more lines out of the production code, mostly from `parse_adr`, which no longer tracks
+keys or quoting, and from `ProblemKind`, which drops to 19 variants.
 
 `AdrFile` lasts only from reading a file to parsing it, since nothing keeps its text after that.
 `docs::front_matter` stays as it is, since design docs have a single `status` field.
 
-The work lands in three PRs, each with its own test review, with sizes measured for the PRs that
-have been built:
+The work lands in three PRs, each with its own test review:
 
 | PR | Changes | Changed lines |
 |---|---|---|
 | 1. Commands | Removes `new.rs` and `print.rs`, simplifies `adr list` and `adr tags`, adds the recipe, and drops the requirement that every ADR has tags. Rewrites the template's instructions for the current format. This PR numbers the design doc | 1,292 besides this doc, almost all deletions |
 | 2. Loading | `load_records` and `load_tags`, `check` over `Records`, and the split between structural and consistency checks. `adr list` and `adr tags` fail on structural problems. Passes and fails `check-docs` on the same files as before | 1,695 besides this doc, 901 of them in tests |
-| 3. Format | The new `yaml.rs` rules, the fields that depend on them, and `tags.yaml` keyed by tag, with the template and guide updated. Closes #16 | About 500, estimated |
+| 3. Format | The new `yaml.rs` rules, the fields that depend on them, and `tags.yaml` keyed by tag, with the template and guide updated. Closes #16 | 851 besides this doc, 332 of them in `yaml.rs` |
 
 Loading goes before the format so the format change touches one reading path rather than both.
 `yaml.rs` and the `tags.yaml` parser are leaves of the pipeline, so replacing them doesn't disturb
@@ -567,15 +576,17 @@ Format, in the third PR:
 
 - the reader folds lines indented with spaces into a value with single spaces, quoted or not,
   including a value that starts on the line after its key;
-- a blank line or `#` comment line ends a value and is otherwise skipped, so an indented line after
-  one is malformed;
+- a blank line or `#` comment line ends a value, even inside quotes, and is otherwise skipped, so an
+  indented line after one is malformed, while an indented line starting with `#` continues a value;
 - a line indented with a tab is malformed;
 - it treats `x` and `"x"` as the same value, and accepts an empty value;
 - it reports a line that isn't an entry, a repeated key, a quoted value with no closing quote or
   with text after it, a value containing `"` or `\`, and a non-empty unquoted value that contains
   `:` or `#` or doesn't start with a letter or digit, each as a structural problem;
 - an empty `supersedes` lists no ADRs, without a problem;
-- `tags.yaml` is read as tags keyed to ADRs, so `graph: ADR-0001 ADR-0003` tags both ADRs.
+- `tags.yaml` is read as tags keyed to ADRs, so `graph: ADR-0001 ADR-0003` tags both ADRs;
+- a tag that doesn't start with a lowercase letter, or that YAML reads as a boolean or null, is a
+  structural problem.
 
 The docs listed above describe the new format and commands.
 

@@ -5,7 +5,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::fmt;
 
 use super::records::Records;
-use super::{Dir, TAGS_PATH, file_number, ids};
+use super::{Dir, TAGS_PATH, file_number, ids, yaml};
 
 /// The longest a summary can be, in characters.
 const SUMMARY_LIMIT: usize = 300;
@@ -28,27 +28,21 @@ impl fmt::Display for Problem {
 /// What's wrong with an ADR or with `tags.yaml`.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum ProblemKind {
+    // Either file
+    /// The front matter or `tags.yaml` doesn't read as flat YAML.
+    Yaml(yaml::Error),
+
     // An ADR on its own
     /// The file name isn't like `0003-short-title.md`, with the `number` in `id`.
     NameMismatch { number: u32 },
     /// The file doesn't start with a front matter block.
     NoFrontMatter,
-    /// A front matter line isn't `key: value` or the continuation of a quoted value.
-    MalformedLine { line: String },
     /// The key isn't one of the front matter fields.
     UnknownKey { key: String },
-    /// The key appears more than once.
-    DuplicateKey { key: String },
-    /// A required field is missing.
+    /// A required field is missing, or its value couldn't be read.
     MissingField { key: String },
-    /// A required field is present but empty.
+    /// `title` or `summary` is empty.
     EmptyField { key: String },
-    /// `title` or `summary` isn't double-quoted.
-    NotQuoted { key: String },
-    /// A quoted value contains `"` or `\`, or has text after its closing quote.
-    QuoteOrBackslash { key: String },
-    /// A quoted value has no closing quote.
-    UnterminatedQuote { key: String },
     /// `summary` is longer than 300 characters.
     SummaryTooLong { chars: usize },
     /// `id` isn't like `ADR-0003`.
@@ -73,19 +67,19 @@ pub(super) enum ProblemKind {
     ActiveButSuperseded { by: u32 },
 
     // tags.yaml
-    /// A line isn't `ADR-NNNN: tag, tag`.
-    TagsMalformedLine { line: String },
-    /// The entry names an ADR that doesn't exist.
-    TagsForMissingAdr { number: u32 },
-    /// The ADR has more than one entry.
-    DuplicateTagsEntry { number: u32 },
-    /// A tag isn't lowercase letters, digits, and hyphens.
-    BadTag { number: u32, tag: String },
+    /// A tag doesn't start with a lowercase letter, has a character other than lowercase letters,
+    /// digits, and hyphens, or is a word YAML reads as a boolean or null.
+    BadTag { tag: String },
+    /// A tag lists `entry`, which isn't like `ADR-0003`.
+    BadTagsEntry { tag: String, entry: String },
+    /// A tag lists ADR `number`, which doesn't exist.
+    TagsForMissingAdr { tag: String, number: u32 },
 }
 
 impl fmt::Display for ProblemKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Yaml(error) => write!(f, "{error}"),
             Self::NameMismatch { number } => write!(
                 f,
                 "`id` is ADR-{number:04}, so the file name should look like \
@@ -94,27 +88,9 @@ impl fmt::Display for ProblemKind {
             Self::NoFrontMatter => {
                 write!(f, "the file doesn't start with front matter between `---` lines")
             },
-            Self::MalformedLine { line } => write!(
-                f,
-                "front matter line `{line}` isn't `key: value` or an indented continuation of a \
-                 quoted value"
-            ),
             Self::UnknownKey { key } => write!(f, "`{key}` isn't an ADR front matter field"),
-            Self::DuplicateKey { key } => write!(f, "`{key}` appears more than once"),
             Self::MissingField { key } => write!(f, "`{key}` is missing"),
             Self::EmptyField { key } => write!(f, "`{key}` is empty"),
-            Self::NotQuoted { key } => write!(f, "`{key}` needs its value in double quotes"),
-            Self::QuoteOrBackslash { key } => {
-                write!(
-                    f,
-                    "the quoted value of `{key}` contains `\"` or `\\`, or has text after its \
-                     closing quote"
-                )
-            },
-            Self::UnterminatedQuote { key } => write!(
-                f,
-                "the quoted value of `{key}` has no closing quote; continuation lines are indented"
-            ),
             Self::SummaryTooLong { chars } => {
                 write!(f, "`summary` is {chars} characters, over the limit of 300")
             },
@@ -124,7 +100,11 @@ impl fmt::Display for ProblemKind {
                 write!(f, "`date` is `{value}`, not a date like `2026-11-02`")
             },
             Self::BadSupersedesEntry { entry } => {
-                write!(f, "`supersedes` lists `{entry}`, which isn't an id like `ADR-0003`")
+                write!(
+                    f,
+                    "`supersedes` lists `{entry}`, which isn't an id like `ADR-0003`; ids are \
+                     separated by spaces"
+                )
             },
             Self::SupersedesMissing { number } => {
                 write!(f, "supersedes ADR-{number:04}, which doesn't exist")
@@ -142,20 +122,19 @@ impl fmt::Display for ProblemKind {
             Self::ActiveButSuperseded { by } => {
                 write!(f, "ADR-{by:04} supersedes this one, so it belongs in `superseded/`")
             },
-            Self::TagsMalformedLine { line } => {
-                write!(f, "`{line}` isn't an entry like `ADR-0003: graph, wires`")
-            },
-            Self::TagsForMissingAdr { number } => {
-                write!(f, "there's an entry for ADR-{number:04}, which doesn't exist")
-            },
-            Self::DuplicateTagsEntry { number } => {
-                write!(f, "ADR-{number:04} has more than one entry")
-            },
-            Self::BadTag { number, tag } => write!(
+            Self::BadTag { tag } => write!(
                 f,
-                "ADR-{number:04} has the tag `{tag}`; tags are lowercase letters, digits, and \
-                 hyphens"
+                "`{tag}` isn't a well-formed tag: a lowercase letter, then lowercase letters, \
+                 digits, and hyphens, and not a word YAML reads as a boolean or null, like `on`"
             ),
+            Self::BadTagsEntry { tag, entry } => write!(
+                f,
+                "`{tag}` lists `{entry}`, which isn't an id like `ADR-0003`; ids are separated by \
+                 spaces"
+            ),
+            Self::TagsForMissingAdr { tag, number } => {
+                write!(f, "`{tag}` lists ADR-{number:04}, which doesn't exist")
+            },
         }
     }
 }
@@ -251,17 +230,17 @@ fn check_supersedes(records: &Records) -> Vec<Problem> {
     problems
 }
 
-/// Checks that each ADR that a tag lists exists.
+/// Checks that each ADR that a tag lists exists, reporting it under each tag that lists it.
 fn check_tags(records: &Records) -> Vec<Problem> {
     let numbers: BTreeSet<u32> = records.adrs.iter().map(|adr| adr.number).collect();
-    let listed: BTreeSet<u32> = records.tags.values().flatten().copied().collect();
-    listed
-        .difference(&numbers)
-        .map(|&number| Problem {
-            path: TAGS_PATH.to_string(),
-            kind: ProblemKind::TagsForMissingAdr { number },
-        })
-        .collect()
+    let mut problems = Vec::new();
+    for (tag, listed) in &records.tags {
+        for &number in listed.difference(&numbers) {
+            let kind = ProblemKind::TagsForMissingAdr { tag: tag.clone(), number };
+            problems.push(Problem { path: TAGS_PATH.to_string(), kind });
+        }
+    }
+    problems
 }
 
 #[cfg(test)]
@@ -269,7 +248,7 @@ mod tests {
     use super::ProblemKind::{
         ActiveButSuperseded, BadDate, BadTag, DuplicateId, EmptyField, NameMismatch,
         SummaryTooLong, SupersededButNotListed, SupersededByMany, SupersedesMissing,
-        SupersedesNotLower, TagsForMissingAdr, UnknownKey,
+        SupersedesNotLower, TagsForMissingAdr, UnknownKey, Yaml,
     };
     use super::*;
     use crate::adr::Dir::{Active, Superseded};
@@ -313,7 +292,7 @@ mod tests {
             valid(Superseded, 2, &[1]),
             valid(Active, 3, &[2]),
         ];
-        assert_eq!(problems_in(&files, "ADR-0003: graph\n"), Vec::<Problem>::new());
+        assert_eq!(problems_in(&files, "graph: ADR-0003\n"), Vec::<Problem>::new());
     }
 
     #[test]
@@ -465,16 +444,20 @@ mod tests {
     #[test]
     fn adrs_dont_need_tags() {
         let files = [valid(Active, 1, &[]), valid(Active, 2, &[])];
-        for tags in ["", "ADR-0001: graph\n", "ADR-0001:\n"] {
+        for tags in ["", "graph: ADR-0001\n", "graph:\n"] {
             assert_eq!(problems_in(&files, tags), Vec::<Problem>::new(), "{tags:?}");
         }
     }
 
     #[test]
     fn tags_must_name_existing_adrs() {
+        // Each tag that lists a missing ADR is a line to fix.
         assert_eq!(
-            problems_in(&[valid(Active, 1, &[])], "ADR-0001: graph\nADR-0004: graph, wires\n"),
-            [problem(TAGS_PATH, TagsForMissingAdr { number: 4 })]
+            problems_in(&[valid(Active, 1, &[])], "graph: ADR-0001 ADR-0004\nwires: ADR-0004\n"),
+            [
+                problem(TAGS_PATH, TagsForMissingAdr { tag: "graph".into(), number: 4 }),
+                problem(TAGS_PATH, TagsForMissingAdr { tag: "wires".into(), number: 4 }),
+            ]
         );
     }
 
@@ -492,14 +475,14 @@ mod tests {
         ];
         let second = &adr_path(Active, "0002-decision-2.md");
         assert_eq!(
-            problems_in(&files, "ADR-0008: graph\n"),
+            problems_in(&files, "graph: ADR-0008\n"),
             sorted(vec![
                 problem(&adr_path(Active, "notes.md"), NameMismatch { number: 1 }),
                 problem(second, EmptyField { key: "title".into() }),
                 problem(second, BadDate { value: "soon".into() }),
                 problem(&adr_path(Active, "0003-decision-3.md"), SupersedesMissing { number: 9 }),
                 problem(&adr_path(Superseded, "0004-decision-4.md"), SupersededButNotListed),
-                problem(TAGS_PATH, TagsForMissingAdr { number: 8 }),
+                problem(TAGS_PATH, TagsForMissingAdr { tag: "graph".into(), number: 8 }),
             ])
         );
     }
@@ -533,10 +516,17 @@ mod tests {
             "docs/architecture/decisions/superseded/0002-decision-2.md: no ADR supersedes this \
              one, so it belongs in `active/`"
         );
+        // The reader's problems come through with their own messages.
         assert_eq!(
-            problem(TAGS_PATH, BadTag { number: 2, tag: "Wires".into() }).to_string(),
-            "docs/architecture/decisions/tags.yaml: ADR-0002 has the tag `Wires`; tags are \
-             lowercase letters, digits, and hyphens"
+            problem(active, Yaml(yaml::Error::NeedsQuotes { key: "title".into() })).to_string(),
+            "docs/architecture/decisions/active/0002-decision-2.md: the value of `title` needs \
+             double quotes, since it contains `:` or `#` or doesn't start with a letter or digit"
+        );
+        assert_eq!(
+            problem(TAGS_PATH, BadTag { tag: "Wires".into() }).to_string(),
+            "docs/architecture/decisions/tags.yaml: `Wires` isn't a well-formed tag: a lowercase \
+             letter, then lowercase letters, digits, and hyphens, and not a word YAML reads as a \
+             boolean or null, like `on`"
         );
     }
 }

@@ -20,12 +20,11 @@ pub(super) fn with_front_matter(dir: Dir, name: &str, front_matter: &str) -> Adr
 
 /// A well-formed ADR numbered `n`, named `000n-decision-n.md`.
 pub(super) fn valid(dir: Dir, n: u32, supersedes: &[u32]) -> AdrFile {
-    let mut front_matter = format!(
-        "id: ADR-{n:04}\ntitle: \"Decision {n}\"\nsummary: \"Summary {n}.\"\ndate: 2026-11-02\n"
-    );
+    let mut front_matter =
+        format!("id: ADR-{n:04}\ntitle: Decision {n}\nsummary: Summary {n}.\ndate: 2026-11-02\n");
     if !supersedes.is_empty() {
         let ids: Vec<String> = supersedes.iter().map(|s| format!("ADR-{s:04}")).collect();
-        let _ = writeln!(front_matter, "supersedes: {}", ids.join(", "));
+        let _ = writeln!(front_matter, "supersedes: {}", ids.join(" "));
     }
     with_front_matter(dir, &format!("{n:04}-decision-{n}.md"), &front_matter)
 }
@@ -41,29 +40,30 @@ pub(super) fn sample_files() -> Vec<AdrFile> {
         with_front_matter(
             Active,
             "0002-versioned-project-files.md",
-            "id: ADR-0002\ntitle: \"Versioned project files\"\nsummary: \"Project files carry a \
-             format version, and older versions are migrated when loaded.\"\ndate: 2026-11-01\n",
+            "id: ADR-0002\ntitle: Versioned project files\nsummary: Project files carry a format \
+             version,\n  and older versions are migrated when loaded.\ndate: 2026-11-01\n",
         ),
         with_front_matter(
             Active,
             "0003-wire-types-checked-on-connect.md",
             "id: ADR-0003\ntitle: \"Wire types: checked on connect\"\nsummary: \"Every wire has a \
-             static type, and connecting two ports checks compatibility, so a mistyped \
+             static type, and connecting two ports checks compatibility,\n  so a mistyped \
              connection is rejected before anything is evaluated.\"\ndate: 2026-11-02\n\
              supersedes: ADR-0001\n",
         ),
         with_front_matter(
             Superseded,
             "0001-wires-are-dynamically-typed.md",
-            "id: ADR-0001\ntitle: \"Wires are dynamically typed\"\nsummary: \"Wires carry values \
-             of any type, checked when a tile reads them.\"\ndate: 2026-10-30\n",
+            "id: ADR-0001\ntitle: Wires are dynamically typed\nsummary: Wires carry values of any \
+             type, checked when a tile reads them.\ndate: 2026-10-30\n",
         ),
     ]
 }
 
 /// The tags of the sample ADRs.
-pub(super) const SAMPLE_TAGS: &str =
-    "ADR-0001: graph, dynamic-typing\nADR-0002: file-format\nADR-0003: graph, wires\n";
+pub(super) const SAMPLE_TAGS: &str = "# Each line is a tag, then the ADRs it applies to.\n\
+                                      dynamic-typing: ADR-0001\nfile-format: ADR-0002\n\
+                                      graph: ADR-0001 ADR-0003\nwires: ADR-0003\n";
 
 /// The records for `files` and the text of `tags.yaml`, which have to pass the structural checks.
 pub(super) fn records_from(files: &[AdrFile], tags: &str) -> Records {
