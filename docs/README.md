@@ -18,10 +18,6 @@ changes, and what to read before different kinds of work.
 | Templates | [`templates/`](templates/) | Living | PR review |
 | Branch notes | `wip/` | Branch only; removed before merge | None |
 
-When code disagrees with an ADR, the architecture overview, or an accepted design doc, stop and
-report the mismatch rather than deciding which one is right. A part of an `accepted` design doc
-that isn't built yet isn't a mismatch.
-
 ## Statuses
 
 An ADR has no status field. Every ADR on `main` is accepted, since merging its PR accepts it, and
