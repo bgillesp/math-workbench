@@ -3,8 +3,8 @@
 How the repository maintains code quality and consistency: its layout, the Cargo workspace and its
 conventions, the checks behind `just ci`, CI and the GitHub settings around it, dependency policy,
 and agent tooling. Read it before changing any of these, or when a check fails and the reason
-isn't clear. The [conventions design doc](../design/0002-repository-conventions.md) records the
-reasoning as first planned. This guide describes the setup as it stands, and takes precedence
+isn't clear. The [conventions design doc](../design/2026-10-23-repository-conventions.md) records
+the reasoning as first planned. This guide describes the setup as it stands, and takes precedence
 where the two differ.
 
 Two principles run through the setup. Anything that must hold is checked by `just ci`, and CI runs

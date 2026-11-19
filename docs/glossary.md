@@ -22,6 +22,6 @@ them.
 **Branch notes.** Working notes in `docs/wip/`, kept only on a branch and moved to permanent homes
 before merge.
 
-**Design doc.** The design for one major change, accepted before implementation, revised until
-its implementation is complete, which may take several PRs, and frozen after. Named by the number
-of the PR that first adds it, as in `docs/design/0042-typed-wire-validation.md`.
+**Design doc.** The design for a change that calls for one, revised during development to reflect
+its decisions by merge and then left as a record. It's named by the date it was first written, as
+in `docs/design/2026-11-19-lighter-agent-guidelines.md`.

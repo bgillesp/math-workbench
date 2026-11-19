@@ -9,32 +9,13 @@ changes, and what to read before different kinds of work.
 |---|---|---|---|
 | Vision | `docs/vision.md` | Rarely | Human developer |
 | Decision records (ADRs) | [`architecture/decisions/`](architecture/decisions/) | Never edited once accepted; a new ADR supersedes it, and it moves to `superseded/`. Their tags are living | Human developer; agents draft only on request |
-| Design docs | [`design/`](design/) | Revised until their implementation is complete, then frozen | Human developer, before implementation |
+| Design docs | [`design/`](design/) | Revised during development to reflect its decisions by merge, then left as a record | PR review |
 | Architecture overview | [`architecture/overview.md`](architecture/overview.md) | Updated in the PR that changes behavior | PR review |
 | Glossary | [`glossary.md`](glossary.md) | Living | PR review |
 | Guides | [`guides/`](guides/) | Living | PR review |
 | API docs | `//!` and `///` in source | Living; `missing_docs` enforces coverage | PR review |
 | Templates | [`templates/`](templates/) | Living | PR review |
 | Branch notes | `wip/` | Branch only; removed before merge | None |
-
-## Statuses
-
-An ADR has no status field. Every ADR on `main` is accepted, since merging its PR accepts it, and
-a rejected proposal's closed PR is the record. An ADR in `architecture/decisions/active/` is in
-force, and one in `superseded/` has been replaced by a later ADR, which lists it in `supersedes`.
-To retire a decision without replacing it, a short new ADR supersedes it and records why.
-`cargo xtask check-docs` checks that the directories and the `supersedes` lists agree.
-
-A design doc keeps its status in front matter at the top of the file, and `check-docs` validates
-it. A design doc is `draft`, `accepted` (approved for implementation, which may still be under
-way), or `implemented` (describes what was built). Its implementation can span several PRs, so it
-can merge as `accepted`, and it can be revised until the implementation is complete. The PR that
-completes the implementation sets it to `implemented`, and it's frozen from then on.
-
-A design dropped before its first PR merges never reaches `main`, since its closed PR is the
-record. One dropped partway is revised to describe what was built and what was dropped, then set
-to `implemented`. So every design doc on `main` is `accepted` or `implemented`, which
-`cargo xtask check-ready` checks in `just ci`.
 
 ## Read this before…
 

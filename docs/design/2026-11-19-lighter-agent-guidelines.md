@@ -1,7 +1,3 @@
----
-status: accepted
----
-
 # Lighter Agent Guidelines
 
 > Approved design, not yet built. It lands in two PRs: process first, then ADR and design doc

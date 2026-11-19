@@ -1,7 +1,3 @@
----
-status: implemented
----
-
 # ADR Directories and the `adr` Command
 
 > Design doc for [#10](https://github.com/bgillesp/math-workbench/pull/10), part of
@@ -10,7 +6,7 @@ status: implemented
 
 ## Context
 
-The [conventions design doc](0002-repository-conventions.md) keeps each ADR's status in its front
+The [conventions design doc](2026-10-23-repository-conventions.md) keeps each ADR's status in its front
 matter. Superseding an ADR means changing the old ADR's status to `superseded by ADR-NNNN`, adding
 `supersedes:` to the new one, and moving entries between sections of the hand-maintained index in
 `decisions/README.md`. `cargo xtask check-docs` then verifies that these copies agree. Most of its

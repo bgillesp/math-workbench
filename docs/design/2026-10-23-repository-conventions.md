@@ -1,7 +1,3 @@
----
-status: implemented
----
-
 # Repository Structure and Development Conventions
 
 > Design doc for [#2](https://github.com/bgillesp/math-workbench/pull/2), the repository

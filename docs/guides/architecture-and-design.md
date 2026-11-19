@@ -102,12 +102,18 @@ ADRs consistent, though it isn't checked, and neither are citations.
 
 ## Design Documents
 
-Development work which implements a major feature or codebase change begins with the creation and
-approval of a design document which elaborates on the details and decisions of the design to be
-implemented, and defines the acceptance criteria for the resulting code changes, from which concrete
-tests are derived.  These design documents provide significant context outside of the code changes
-themselves which may be useful to know for future development in the same region of the codebase,
-and so are preserved for reference.  Design documents are numbered by the PR that first adds them,
-and are revised until their implementation is complete, which may take several PRs, so that they
-describe the problem and the solution as built. The PR that completes the implementation sets their
-status to `implemented`, and they're frozen from then on.
+Development work which implements a major feature or codebase change may call for a design
+document which elaborates on the details and decisions of the design to be implemented.  These
+design documents provide significant context outside of the code changes themselves which may be
+useful to know for future development in the same region of the codebase, and so are preserved for
+reference.
+
+Whether a change calls for one is up to the developer. A design doc is named
+`docs/design/YYYY-MM-DD-<topic>.md`, dated the day it was first written. There's no template,
+front matter, or status, so a doc takes whatever shape suits the task.
+
+A design doc changes freely during development, and before its PR merges it reflects the decisions
+made. A design whose work isn't finished, such as one that lands across several PRs, opens with a
+short note on what's happening, and the note is removed once the work is done. After that the doc
+is left as a record, and a later change to the same area gets a new dated doc, which can link the
+old one. Design docs cite ADRs by id, as in `ADR-0003`.
