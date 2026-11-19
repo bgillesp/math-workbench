@@ -119,12 +119,11 @@ when a PR resolves an issue, and the squash commit message format.
 
 **`docs/guides/code-and-tests.md`**, a new seed: doc comments that say what an item is for rather
 than restating its name (from `pre-pr`), a doc comment on every field and variant of a non-trivial
-struct or enum (issue #11), checking the glossary before
-naming something new, and the list of test techniques from the development guide, without the
-directives tied to test approval. It also seeds a test style note from the human developer's
-earlier feedback: prefer fewer tests, each pinning behavior whose failure would be a real
-regression, and avoid pinning exact wording, incidental output, or choices a later change could
-reasonably make.
+struct or enum (issue #11), checking the glossary before naming something new, and the list of test
+techniques from the development guide, without the directives tied to test approval. It also seeds a
+test style note from a human developer's earlier feedback: prefer fewer tests, each pinning behavior
+whose failure would be a real regression, and avoid pinning exact wording, incidental output, or
+choices a later change could reasonably make.
 
 **Agent config.** Delete all of it: `.agents/` (the `pre-pr` skill), the `.claude/skills`
 symlink, `.claude/settings.json` (the format hook, the permission allowlist, and the attribution
@@ -140,11 +139,11 @@ be explored later. `xtask doctor` drops its symlink warning, and its summary in 
 checks becomes: agent configuration is up to each developer, and `just ci` is the enforcement. "A
 new crate is a major change, so it follows an accepted design doc" drops its tier clause. The
 formatting paragraph replaces the hook with "run `just fmt` before committing". The agent tooling
-section shrinks to `AGENTS.md` and `CLAUDE.md`, plus a setup note: developers will likely want to allow `just:*` and the cargo subcommands `build`,
-`check`, `clippy`, `doc`, `fmt`, `metadata`, `nextest`, `test`, `tree`, and `xtask` without a
-prompt, and personal settings go in `.claude/settings.local.json` or user settings. The note
-doesn't mention `gh`. It also says the repository doesn't expect commits or PR descriptions to
-credit agentic contributions.
+section shrinks to `AGENTS.md` and `CLAUDE.md`, plus a setup note: developers will likely want to
+allow `just:*` and the cargo subcommands `build`, `check`, `clippy`, `doc`, `fmt`, `metadata`,
+`nextest`, `test`, `tree`, and `xtask` without a prompt, and personal settings go in
+`.claude/settings.local.json` or user settings. The note doesn't mention `gh`. It also says the
+repository doesn't expect commits or PR descriptions to credit agentic contributions.
 
 **Smaller pieces.**
 

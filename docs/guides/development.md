@@ -18,10 +18,11 @@ Planning happens in a GitHub Project, which a human developer manages. The
 
 ## Branches and pull requests
 
-Each change is made on its own branch, named with a short slug, and merged through a pull request.
-Drafts skip CI. Mark a PR ready for review once the [merge checklist](#merge-checklist) holds,
-which runs CI. PRs are squash-merged into a single commit on `main`. Branch protection on `main`
-requires CI to pass on a branch that's up to date with `main`, and keeps history linear.
+Each change is made on its own branch, named with a short slug with no issue number required, and
+merged through a pull request. Drafts skip CI. Once the [merge checklist](#merge-checklist) holds,
+mark the PR ready for review, which runs CI. PRs are squash-merged into a single commit on `main`.
+Branch protection on `main` requires CI to pass on a branch that's up to date with `main`, and keeps
+history linear.
 
 The [issues and PRs guide](issues-and-prs.md) covers PR titles, descriptions, and the squash commit
 message.
