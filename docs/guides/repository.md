@@ -8,10 +8,10 @@ reasoning as first planned. This guide describes the setup as it stands, and tak
 where the two differ.
 
 Two principles run through the setup. Anything that must hold is checked by `just ci`, and CI runs
-the same command, so a branch that passes locally passes in CI. Hooks and skills are conveniences
-on top, never the only enforcement. And development works on Linux, macOS, and Windows, so recipes
-stay short calls into `cargo` or `xtask`, and anything with real logic is written in Rust in
-`xtask` rather than as a shell script.
+the same command, so a branch that passes locally passes in CI. How a developer configures their
+agents is up to them, and `just ci` is the enforcement. And development works on Linux, macOS, and
+Windows, so recipes stay short calls into `cargo` or `xtask`, and anything with real logic is
+written in Rust in `xtask` rather than as a shell script.
 
 ## Layout
 
@@ -31,11 +31,6 @@ stay short calls into `cargo` or `xtask`, and anything with real logic is writte
 ├── .gitattributes            # LF line endings in the repository
 ├── .gitignore                # build output, local agent settings, pending snapshots
 ├── .cargo/config.toml        # the `cargo xtask` alias
-├── .agents/skills/           # skills, one directory each
-├── .claude/
-│   ├── settings.json         # permissions, the format hook, and attribution
-│   └── skills -> ../.agents/skills
-├── .codex/hooks.json         # the format hook
 ├── .github/
 │   ├── workflows/            # ci.yml, audit.yml, extended.yml
 │   ├── dependabot.yml
@@ -91,8 +86,6 @@ Bump the toolchain by hand, in its own PR.
 
 ### Adding a crate
 
-A new crate is a major change, so it follows an accepted design doc.
-
 1. Create `crates/mw-<name>/` with a manifest modeled on `crates/mw-math/Cargo.toml`: the
    inherited package settings, a `description`, and `[lints] workspace = true`.
 2. Open `src/lib.rs` with `//!` docs on the crate's purpose.
@@ -122,9 +115,9 @@ code, can opt out locally with `#[allow(unsafe_code)]` and a comment justifying 
 `undocumented_unsafe_blocks` requires a `// SAFETY:` comment on every `unsafe` block saying why
 it's sound, and new `unsafe` code is justified in its PR.
 
-Formatting follows `rustfmt.toml`. The agent hooks run `just fmt` after each edit, and
-`just fmt-check` fails CI on unformatted code. `.editorconfig` and `.gitattributes` keep
-whitespace and line endings consistent in every other file.
+Formatting follows `rustfmt.toml`. Run `just fmt` before committing, so unformatted code never
+reaches review, and `just fmt-check` fails CI on unformatted code. `.editorconfig` and
+`.gitattributes` keep whitespace and line endings consistent in every other file.
 
 ## Repository checks
 
@@ -135,7 +128,7 @@ in `.cargo/config.toml`, usually from a recipe. `cargo xtask --help` lists its c
 |---|---|---|
 | `check-docs` | Checks ADRs, design docs, and relative links | `just check-repo` |
 | `check-ready` | Checks that `docs/wip/` is empty or missing, and every design doc is `accepted` or `implemented` | `just ci` |
-| `doctor` | Warns about missing tools, or a broken skills symlink | `just setup` |
+| `doctor` | Warns about missing tools | `just setup` |
 | `adr` | Lists ADRs and their tags; `cargo xtask adr --help` lists its subcommands | `just adr` |
 
 Each check prints an `error:` line for each problem, naming the file or crate to fix, and exits
@@ -195,8 +188,7 @@ before merge. `audit.yml` isn't a required check.
 `extended.yml` holds slower checks that don't run on every PR. For now it builds and tests on
 macOS and Windows. Run it on `main` before tagging a release, and on any branch that touches
 platform-specific code, with `gh workflow run extended.yml --ref <branch>`. Extended property
-tests, fuzzing, benchmarks, and mutation testing will go here once there's code for them (see the
-[development guide](development.md#testing)).
+tests, fuzzing, benchmarks, and mutation testing will go here once there's code for them.
 
 ## GitHub settings
 
@@ -204,10 +196,10 @@ These live in the repository settings rather than in files, and only a human dev
 them.
 
 PRs are squash-merged, and branches are deleted after merge. The default squash message is the PR
-title alone, so the commit body starts empty and is written at merge time, as the
-[development guide](development.md#commit-messages) describes. A ruleset on `main` requires a PR
-and a passing `just ci` on a branch that's up to date with `main`, keeps history linear, and
-blocks force pushes and deletion.
+title alone, so the commit body starts empty and is written at merge time, as the [issues and PRs
+guide](issues-and-prs.md#commit-messages) describes. A ruleset on `main` requires a PR and a passing
+`just ci` on a branch that's up to date with `main`, keeps history linear, and blocks force pushes
+and deletion.
 
 Workflows may use only GitHub's own actions and an allowlist, currently `taiki-e/install-action`
 and `Swatinem/rust-cache`. GitHub also requires every action to be pinned to a full commit SHA,
@@ -220,8 +212,7 @@ that contains a recognized credential. Don't bypass it: remove the secret from t
 commits, or ask a human developer if it looks like a false positive.
 
 The `kind/`, `area/`, and `needs-triage` labels are described in the
-[development guide](development.md). The repository is linked to the
-[Math Workbench project](https://github.com/users/bgillesp/projects/1).
+[development guide](development.md).
 
 ## Dependencies
 
@@ -251,36 +242,20 @@ the `Cargo.lock` diff.
 
 ## Agent tooling
 
-The tooling is tool-neutral at its core, with a thin adapter for each harness. Claude Code is the
-primary harness, and Codex is also supported.
+The repository ships only agent instructions: `AGENTS.md`, which Codex reads directly, and
+`CLAUDE.md`, which imports it for Claude Code. Everything else about an agent setup belongs to the
+developer, and personal Claude Code settings go in `.claude/settings.local.json`, which git
+ignores, or in user settings.
 
-| Concern | Source | Claude Code | Codex |
-|---|---|---|---|
-| Instructions | `AGENTS.md` | `CLAUDE.md` imports it with `@AGENTS.md` | Reads it directly |
-| Skills | `.agents/skills/<name>/SKILL.md` | Through the `.claude/skills` symlink | Reads `.agents/skills` directly |
-| Format hook | `just fmt` | `.claude/settings.json` | `.codex/hooks.json` |
-| Permissions | | `.claude/settings.json` | |
-
-Both harnesses run `just fmt` after file edits. Codex runs the hook only once it's been trusted
-in Codex. When changing a hook, change both adapters. The Claude Code permissions allow `just`,
-the cargo commands that build, check, and inspect, and read-only `gh` commands for issues, PRs,
-and the Project, so these run without prompting. The settings also leave Claude Code's attribution
-lines out of commit messages and PR descriptions. Personal settings go in
-`.claude/settings.local.json`, which git ignores.
-
-Skills live in `.agents/skills/`, one directory each. Keep each skill a thin wrapper around a
-guide, so the procedure lives in docs that people read too. The `pre-pr` skill walks through the
-definition of done.
-
-The `.claude/skills` link is the only symlink in the repository. On Windows it needs Developer
-Mode and `core.symlinks=true`. Without them, git checks it out as a plain file, Claude Code finds
-no project skills, and `cargo xtask doctor` warns.
+Most developers will want to allow `just:*` and the cargo subcommands `build`, `check`, `clippy`,
+`doc`, `fmt`, `metadata`, `nextest`, `test`, `tree`, and `xtask` to run without a prompt. The
+repository doesn't expect commits or PR descriptions to credit agentic contributions.
 
 Add a nested `AGENTS.md` only for a crate with unusual local rules, such as unsafe GPU code.
 
 ## Changing this setup
 
-Changes to the checks, lints, workflows, or agent tooling follow the usual workflow. Never loosen
+Changes to the checks, lints, or workflows go through the usual PR review. Never loosen
 a lint, check, or workflow to get an unrelated change through. Propose it as its own change
 instead. Keep the recipes, the workflows, and the commands in `AGENTS.md` in agreement, and
 update this guide in the same PR. A change that needs a repository setting, such as a newly

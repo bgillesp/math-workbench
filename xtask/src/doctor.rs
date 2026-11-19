@@ -1,8 +1,7 @@
-//! `doctor`: warns about local setup problems that keep the checks or agent tooling from working.
+//! `doctor`: warns about missing tools that the checks run.
 //!
 //! Warnings only, so `just setup` always finishes.
 
-use std::path::Path;
 use std::process::{Command, Stdio};
 
 /// Tools the checks run, as a program and the arguments that print its version.
@@ -13,7 +12,7 @@ const TOOLS: &[(&str, &[&str])] = &[
     ("cargo", &["insta", "--version"]),
 ];
 
-pub(crate) fn run(root: &Path) {
+pub(crate) fn run() {
     let mut warnings = Vec::new();
     for (program, args) in TOOLS {
         if !runs(program, args) {
@@ -24,15 +23,6 @@ pub(crate) fn run(root: &Path) {
             };
             warnings.push(format!("`{name}` isn't installed; run `just setup`"));
         }
-    }
-    if !root.join(".claude/skills").is_dir() {
-        warnings.push(
-            "`.claude/skills` isn't a link to `.agents/skills`, so Claude Code won't find the \
-             project skills. On Windows, enable Developer Mode and run \
-             `git config core.symlinks true`, then delete the `.claude/skills` file and run \
-             `git checkout -- .claude/skills`."
-                .to_string(),
-        );
     }
     if warnings.is_empty() {
         println!("doctor: ok");

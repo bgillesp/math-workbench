@@ -47,7 +47,7 @@ impl Command {
             Self::Adr => "list ADRs and their tags (`cargo xtask adr --help` for more)",
             Self::CheckDocs => "ADRs, design docs, and relative links are consistent",
             Self::CheckReady => "no branch notes, and every design doc is accepted or implemented",
-            Self::Doctor => "warn about missing tools or a broken skills symlink",
+            Self::Doctor => "warn about missing tools",
         }
     }
 }
@@ -71,7 +71,7 @@ fn main() -> ExitCode {
         Command::CheckDocs => docs::run(&root),
         Command::CheckReady => ready::run(&root),
         Command::Doctor => {
-            doctor::run(&root);
+            doctor::run();
             return ExitCode::SUCCESS;
         },
     };

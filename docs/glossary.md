@@ -22,9 +22,6 @@ them.
 **Branch notes.** Working notes in `docs/wip/`, kept only on a branch and moved to permanent homes
 before merge.
 
-**Change tier.** How much process a change needs: minor, standard, or major. See the
-[development guide](guides/development.md).
-
 **Design doc.** The design for one major change, accepted before implementation, revised until
 its implementation is complete, which may take several PRs, and frozen after. Named by the number
 of the PR that first adds it, as in `docs/design/0042-typed-wire-validation.md`.
