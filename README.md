@@ -16,8 +16,7 @@ just setup   # install the cargo tools the checks use
 just check   # format check, lints, tests, docs, and repository checks
 ```
 
-Development works on Linux, macOS, and Windows. On Windows, enable Developer Mode and clone with
-`git clone -c core.symlinks=true`, so the one symlink in the repository checks out correctly.
+Development works on Linux, macOS, and Windows.
 
 ## Contributing
 

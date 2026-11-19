@@ -39,8 +39,7 @@ completes the implementation sets it to `implemented`, and it's frozen from then
 A design dropped before its first PR merges never reaches `main`, since its closed PR is the
 record. One dropped partway is revised to describe what was built and what was dropped, then set
 to `implemented`. So every design doc on `main` is `accepted` or `implemented`, which
-`cargo xtask check-ready` checks in `just ci`. The check can't tell whether a PR completes an
-implementation, so the `pre-pr` skill covers setting `implemented`.
+`cargo xtask check-ready` checks in `just ci`.
 
 ## Read this before…
 
