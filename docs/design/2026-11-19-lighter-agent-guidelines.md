@@ -79,14 +79,14 @@ Anti-goals:
 
 **`AGENTS.md`.** Keeps the project description, the application overview, the commands, and the
 pointers to the guides. The roles paragraph becomes: a human developer sets direction, approves
-architecture decisions, and reviews PRs before they merge to `main`; Issues record problems to
-solve later, and work doesn't need an issue to start; planning happens in a GitHub Project that a
-human developer manages. Removed: sessions addressing a selected Issue, sessions in their own
+architecture decisions, and reviews PRs before they merge to `main`; Issues record problems to solve
+later, and work doesn't need an issue to start. Removed: sessions addressing a selected Issue,
+planning in a GitHub Project (the development guide still covers the Project), sessions in their own
 worktrees, reporting mismatches between code and docs, and never editing an accepted ADR (the
 architecture and design guide still says it until PR 2). The repository design paragraph drops
-test-driven development and "explicit detailed guidance on development procedures". The
-`.agents/` bullet goes, the `just fmt` description loses "an agent hook also runs this after edits"
-and says to run it before committing, and Resources lists the two new style guides.
+test-driven development and "explicit detailed guidance on development procedures". The `.agents/`
+bullet goes, the `just fmt` description loses "an agent hook also runs this after edits" and says to
+run it before committing, and Resources lists the two new style guides.
 
 **`docs/guides/development.md`** becomes a guide to repository usage:
 
