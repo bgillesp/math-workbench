@@ -1,7 +1,8 @@
 # ADR-NNNN: Decision title
 
 Date: YYYY-MM-DD
-Supersedes: ADR-NNNN (only for an ADR that replaces earlier ones; otherwise delete this line)
+
+Supersedes: ADR-NNNN (only if this replaces earlier ADRs, which move to `inactive/`; else delete)
 
 ## Context
 

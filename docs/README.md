@@ -9,7 +9,7 @@ changes, and what to read before different kinds of work.
 |---|---|---|---|
 | Vision | `docs/vision.md` | Rarely | Human developer |
 | Decision records (ADRs) | `architecture/decisions/active/` and `inactive/` | A changed decision gets a new ADR; retired ADRs move to `inactive/` | Human developer |
-| Design docs | [`design/`](design/) | Revised during development to reflect its decisions by merge, then left as a record | PR review |
+| Design docs | [`design/`](design/) | Revised during development to reflect their decisions by merge, then left as a record | PR review |
 | Architecture overview | [`architecture/overview.md`](architecture/overview.md) | Updated in the PR that changes behavior | PR review |
 | Glossary | [`glossary.md`](glossary.md) | Living | PR review |
 | Guides | [`guides/`](guides/) | Living | PR review |

@@ -128,13 +128,13 @@ be explored later. `xtask doctor` drops its symlink warning, and its summary in 
 **`docs/guides/repository.md`.** The layout loses `.agents/`, `.claude/`, and `.codex/`. The
 `doctor` row loses the symlink. The principle that hooks and skills are conveniences on top of the
 checks becomes: agent configuration is up to each developer, and `just ci` is the enforcement. "A
-new crate is a major change, so it follows an accepted design doc" goes. The
-formatting paragraph replaces the hook with "run `just fmt` before committing". The agent tooling
-section shrinks to `AGENTS.md` and `CLAUDE.md`, plus a setup note: developers will likely want to
-allow `just:*` and the cargo subcommands `build`, `check`, `clippy`, `doc`, `fmt`, `metadata`,
-`nextest`, `test`, `tree`, and `xtask` without a prompt, and personal settings go in
-`.claude/settings.local.json` or user settings. The note doesn't mention `gh`. It also says the
-repository doesn't expect commits or PR descriptions to credit agentic contributions.
+new crate is a major change, so it follows an accepted design doc" goes. The formatting paragraph
+replaces the hook with "run `just fmt` before committing". The agent tooling section shrinks to
+`AGENTS.md` and `CLAUDE.md`, plus a setup note: developers will likely want to allow `just:*` and
+the cargo subcommands `build`, `check`, `clippy`, `doc`, `fmt`, `metadata`, `nextest`, `test`,
+`tree`, and `xtask` without a prompt, and personal settings go in `.claude/settings.local.json` or
+user settings. The note doesn't mention `gh`. It also says the repository doesn't expect commits
+or PR descriptions to credit agentic contributions.
 
 **Smaller pieces.**
 
@@ -163,9 +163,10 @@ the design doc template remain. PR 1's description lists these as intermediate s
 written, with no template, front matter, or status. A design doc can change freely during
 development, and before a PR merges it reflects the decisions made. A design whose work isn't
 finished opens with a short note on what's happening, removed once the work is done. After that the
-doc stops changing, and a later change to the same area gets a new dated doc. The existing docs
-are renamed to the dates they first landed, with their `status` front matter removed and their text
-otherwise left as historical record, apart from fixing links the renames break:
+doc stops changing, apart from typo and link fixes, and a later change to the same area gets a new
+dated doc. The existing docs are renamed to the dates they first landed, with their `status` front
+matter removed and their text otherwise left as historical record, apart from fixing links the
+renames break:
 
 | Now | After |
 |---|---|
@@ -204,9 +205,10 @@ justfile, and `check-repo`'s comment says it checks links.
   conventions above, without tooling.
 - `docs/README.md`'s "What lives where" table: ADR changes become "a changed decision gets a new
   ADR; retired ADRs move to `inactive/`", with sign-off by a human developer; design doc changes
-  become "revised during development to reflect its decisions by merge, then left as a record",
-  with sign-off in PR review. The Statuses section is removed, and ADR rows in "Read this before"
-  point to `active/` instead of `cargo xtask adr list`.
+  become "revised during development to reflect their decisions by merge, then left as a record",
+  with sign-off in PR review. The Statuses section is removed. In "Read this before", the
+  "Changing a crate" row points to `active/` and the "Proposing an architecture decision" row to
+  the ADRs in force, both instead of `cargo xtask adr list`.
 - The glossary's ADR, design doc, and branch notes entries are updated.
 - The architecture overview's `xtask` section and its ADR sentence lose `adr list`.
 - The repository guide's command table, layout, and Repository checks section follow the reduced

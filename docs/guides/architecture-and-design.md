@@ -43,12 +43,12 @@ ADRs live in `docs/architecture/decisions/`: the ones in force in `active/`, and
 branches that each add an ADR can take the same number, and the second to merge renumbers its ADR
 by hand.
 
-An ADR that replaces earlier ones names them in its `Supersedes:` line, and restates whatever still
-holds from them, so the current decision can be read from one document. To write an ADR, copy the
-[template](../templates/adr.md).
+An ADR that replaces earlier ones moves them to `inactive/` with `git mv`, names them in its
+`Supersedes:` line, and restates whatever still holds from them, so the current decision can be
+read from one document. To write an ADR, copy the [template](../templates/adr.md).
 
-ADRs and design docs cite ADRs by id in prose, as in `ADR-0003`, so citations survive a move to
-`inactive/`, and architecture docs cite the ADRs they rest on. No tooling checks ADRs, so these
+ADRs are cited by id in prose, as in `ADR-0003`, so citations survive a move to `inactive/`.
+Architecture docs and design docs cite the ADRs they rest on. No tooling checks ADRs, so these
 conventions are kept by hand.
 
 ## Design Documents
@@ -59,12 +59,12 @@ design documents provide significant context outside of the code changes themsel
 useful to know for future development in the same region of the codebase, and so are preserved for
 reference.
 
-Whether a change calls for one is up to the developer. A design doc is named
+Whether a change calls for one is up to whoever makes the change. A design doc is named
 `docs/design/YYYY-MM-DD-<topic>.md`, dated the day it was first written. There's no template,
 front matter, or status, so a doc takes whatever shape suits the task.
 
 A design doc changes freely during development, and before its PR merges it reflects the decisions
 made. A design whose work isn't finished, such as one that lands across several PRs, opens with a
 short note on what's happening, and the note is removed once the work is done. After that the doc
-is left as a record, and a later change to the same area gets a new dated doc, which can link the
-old one. Design docs cite ADRs by id, as in `ADR-0003`.
+is left as a record, though typos and links can still be fixed, and a later change to the same
+area gets a new dated doc, which can link the old one.

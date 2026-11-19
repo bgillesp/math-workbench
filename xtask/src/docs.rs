@@ -94,8 +94,6 @@ fn markdown_options() -> Options {
     Options::ENABLE_TABLES | Options::ENABLE_YAML_STYLE_METADATA_BLOCKS
 }
 
-// Links
-
 /// Checks that each relative link in `text`, a Markdown file at the repository-relative `path`,
 /// points to something that exists.
 fn check_links(path: &Path, text: &str, exists: impl Fn(&Path) -> bool) -> Vec<Problem> {
