@@ -47,9 +47,10 @@ to `implemented`. So every design doc on `main` is `accepted` or `implemented`, 
 |---|---|
 | Getting oriented | The [architecture overview](architecture/overview.md), then the [glossary](glossary.md) |
 | Starting any change | The [development guide](guides/development.md) |
-| Changing the checks, CI, or agent tooling | The [repository guide](guides/repository.md) |
-| Writing or changing tests | The [development guide](guides/development.md#testing) |
+| Changing the checks or CI | The [repository guide](guides/repository.md) |
+| Writing or changing tests | The [code and test style guide](guides/code-and-tests.md), and the [development guide](guides/development.md#testing) |
+| Writing an issue or PR | The [issues and PRs guide](guides/issues-and-prs.md) |
 | Changing a crate | Its `lib.rs` docs, and the ADRs in force for its area, from `cargo xtask adr list --tags` |
-| Planning a major change | The [design doc template](templates/design-doc.md) and the ADRs in force |
+| Writing a design doc | The [architecture and design guide](guides/architecture-and-design.md#design-documents), and the ADRs in force |
 | Proposing an architecture decision | The [ADR workflow](guides/architecture-and-design.md#architecture-decision-records), and the ADRs in force from `cargo xtask adr list` |
 | Continuing work on a branch | Its branch notes in `wip/` |
