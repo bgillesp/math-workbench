@@ -9,7 +9,7 @@ are made fully available as context for agents engaging with the codebase.
 Knowledge is represented in a few main ways:
 - High-level overview representations: `docs/architecture/overview.md` for a living architecture
   summary, `docs/glossary.md` for terminology and naming conventions, and
-  `cargo xtask adr list` for a listing of the architecture decisions in force.
+  `docs/architecture/decisions/active/` for the architecture decisions in force.
 - Architecture decision records (ADRs): documents in `docs/architecture/decisions/` representing
   significant decisions about the system design which have broad downstream consequences for
   development.
@@ -28,77 +28,28 @@ For full details on the structure and conventions of the `docs/` directory, see 
 These documents record high-level decisions with a significant impact on downstream work.  Such
 decisions call for careful consideration, and the thought process and outcome of such decisions is
 recorded in an Architecture Decision Record, or ADR.  At any time, the project will have some set of
-ADRs which are active over the system design, and the decision of an ADR is modified or nullified by
-creating a superseding ADR.  ADRs are approved and merged in their own PR, and merging the PR
-accepts the ADR. A rejected proposal isn't merged, since its closed PR is the record. Apart from
-typo fixes, an accepted ADR is never edited. Agents draft a new ADR only when a human developer
-asks for one.
+ADRs which are active over the system design, and a decision is changed by a new ADR, or retired by
+moving its ADR to `inactive/`.  A human developer approves an ADR in its PR. A rejected proposal
+isn't merged, since its closed PR is the record. An approved ADR's decision isn't rewritten, though
+typos and links can be fixed.
 
 Examples of such decisions are the wire type system and serialization versioning. A question that's
 still open stays in an issue until it's decided, and a choice that's local or easy to reverse
 belongs in a design doc.
 
-ADRs live in `docs/architecture/decisions/`: the ADRs in force in `active/`, and the ones a later
-ADR has replaced in `superseded/`, kept for reference. Each is a file named like
-`0003-short-title.md`, numbered in sequence across both directories. Whether an ADR is in force
-shows in its path, so nothing inside it changes when it's superseded. Its front matter is written
-once, when it's created:
+ADRs live in `docs/architecture/decisions/`: the ones in force in `active/`, and retired ones in
+`inactive/`, whether or not a later ADR replaced them. Each is a file named like
+`0003-short-title.md`, with the id `ADR-0003`, numbered in sequence across both directories. Two
+branches that each add an ADR can take the same number, and the second to merge renumbers its ADR
+by hand.
 
-```yaml
----
-id: ADR-0003
-title: "Wire types: checked on connect"
-summary: Every wire has a static type, and connecting two ports checks compatibility, so a
-  mistyped connection is rejected before anything is evaluated.
-date: 2026-11-02
-supersedes: ADR-0001
----
-```
+An ADR that replaces earlier ones names them in its `Supersedes:` line, and restates whatever still
+holds from them, so the current decision can be read from one document. To write an ADR, copy the
+[template](../templates/adr.md).
 
-The summary is a sentence or two of at most 300 characters. Any value may continue on indented
-lines, and goes in double quotes if it contains `:` or `#` or starts with anything but a letter or
-digit, as the title does here. No value can contain `"` or `\`. These rules keep the front matter to
-flat YAML that a YAML parser reads the same way. `supersedes` is there only for an ADR that replaces
-earlier ones, and lists their ids separated by spaces.
-
-Tags say broadly what each ADR affects. They live in `decisions/tags.yaml`, with a line for each tag
-listing its ADRs, as in `graph: ADR-0001 ADR-0003`. A tag starts with a lowercase letter, continues
-with lowercase letters, digits, and hyphens, and can't be a word YAML reads as a boolean or null,
-such as `on` or `null`. Unlike the ADRs, `tags.yaml` is a living file: tags can be added, renamed,
-or merged in any PR as the architecture grows, and a superseded ADR keeps its tags. There's no list
-of allowed tags, but the existing ones are in view in the file, so reuse one where it fits. An ADR
-doesn't need a tag, but one with no tags can't be found by tag, so give each ADR at least one. Two
-branches that add the same new tag in different places merge cleanly, and `check-docs` then reports
-the repeated tag, so its two lines need joining by hand.
-
-To write an ADR, copy the [template](../templates/adr.md) and follow the steps in its comment. The
-tooling only reads ADRs, so creating one, moving the ones it supersedes to `superseded/`, and adding
-its tags are all ordinary edits, and moving an ADR doesn't count as editing it. A superseding ADR
-restates whatever still holds from the ADRs it replaces, so the current decision can be read from
-one document.
-
-`cargo xtask check-docs` checks the file names, the front matter, the supersede links, and
-`tags.yaml`, and it reports any front matter left as the template has it. It checks each file's
-structure first, such as a missing field or a malformed `id`, and checks the ADRs against their file
-names and each other only once every file passes, so fixing one round of problems can show another.
-Two branches that each add an ADR take the same number, so the second to merge fails the check once
-it's up to date with `main`, and its ADR is renumbered by hand.
-
-`cargo xtask adr` also prints views of the ADRs:
-
-- `adr list` lists the ADRs in force by number, with their tags. `--all` adds the superseded ones,
-  `--tags` groups them by tag, with any that have no tags under `(no tags)`, `--tags=graph,wires`
-  groups them under just those tags, and `--verbose` adds each path and summary.
-- `adr tags` lists every tag.
-
-If any file has a structural problem, `adr list` prints the problems instead of a list, since a list
-missing an ADR could mislead a reader. `adr tags` needs only `tags.yaml` to be well formed.
-
-ADRs and design docs cite ADRs by id in prose, as in `ADR-0003`, rather than with links, since a
-link breaks when its target moves to `superseded/`, and fixing it would mean editing a frozen
-document. Living docs may link to ADR files. The link check catches a link that a move breaks, and
-the fix is usually to point at the successor. The template's heading, `# ADR-NNNN: Title`, keeps
-ADRs consistent, though it isn't checked, and neither are citations.
+ADRs and design docs cite ADRs by id in prose, as in `ADR-0003`, so citations survive a move to
+`inactive/`, and architecture docs cite the ADRs they rest on. No tooling checks ADRs, so these
+conventions are kept by hand.
 
 ## Design Documents
 
