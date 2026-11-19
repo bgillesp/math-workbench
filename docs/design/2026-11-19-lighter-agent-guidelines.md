@@ -1,9 +1,5 @@
 # Lighter Agent Guidelines
 
-> Approved design, not yet built. It lands in two PRs: process first, then ADR and design doc
-> conventions. PR 1 adds this doc as `docs/design/2026-11-19-lighter-agent-guidelines.md`, with a
-> temporary `status: accepted` line that PR 2 removes.
-
 ## Why
 
 The repository's guides specify a development workflow in detail: change tiers, a five-step
@@ -95,7 +91,7 @@ style guides.
   workflow.
 - Branch notes: `docs/wip/` holds a branch's working notes, which are removed before merge, as
   `just ci` enforces. The section keeps its `Branch notes` heading, since `check-ready`'s message
-  links to that anchor until PR 2.
+  links to that anchor.
 - Merge checklist: `just ci` passes; living docs (the architecture overview, glossary, crate docs,
   and guides) are updated as the change requires; a design doc, if there is one, reflects the
   decisions made during development; `docs/wip/` is empty; and any new dependency, including one
@@ -132,7 +128,7 @@ be explored later. `xtask doctor` drops its symlink warning, and its summary in 
 **`docs/guides/repository.md`.** The layout loses `.agents/`, `.claude/`, and `.codex/`. The
 `doctor` row loses the symlink. The principle that hooks and skills are conveniences on top of the
 checks becomes: agent configuration is up to each developer, and `just ci` is the enforcement. "A
-new crate is a major change, so it follows an accepted design doc" drops its tier clause. The
+new crate is a major change, so it follows an accepted design doc" goes. The
 formatting paragraph replaces the hook with "run `just fmt` before committing". The agent tooling
 section shrinks to `AGENTS.md` and `CLAUDE.md`, plus a setup note: developers will likely want to
 allow `just:*` and the cargo subcommands `build`, `check`, `clippy`, `doc`, `fmt`, `metadata`,
@@ -189,17 +185,18 @@ typos and links can be fixed, and a changed decision gets a new ADR. A human dev
 ADR in its PR. `tags.yaml` and the YAML front matter go.
 
 **Templates.** `docs/templates/design-doc.md` is deleted. `docs/templates/adr.md` becomes a heading
-(`# ADR-NNNN: Title`), a `Date:` line, an optional `Supersedes:` line, and the four sections
-(Context, Decision, Alternatives considered, Consequences), each with a one-line prompt, without
-the seven-step comment.
+(`# ADR-NNNN: Decision title`), a `Date:` line, an optional `Supersedes:` line, and the four
+sections (Context, Decision, Alternatives considered, Consequences), each with a one-line prompt,
+without the seven-step comment.
 
 **xtask.** Delete `xtask/src/adr/` and the `adr` command. `check-docs` keeps only the relative
 link check, dropping the design doc name, number, and status checks and `front_matter`.
-`check-ready` checks only that `docs/wip/` is empty or missing, and its message keeps pointing to
-the development guide's branch notes section. Tests for the removed checks go, and the tests for
-what remains stay. Nothing new needs testing. Dependencies are unchanged, since `lexopt` and
-`pulldown-cmark` are still used. The `adr` recipe leaves the justfile, and `check-repo`'s comment
-says it checks links.
+`check-ready` checks only that `docs/wip/` is empty or missing, and its message becomes
+`docs/wip/<name>: remove branch notes before merge (see docs/guides/development.md#branch-notes)`,
+matching the development guide and still pointing to its branch notes section. Tests for the
+removed checks go, and the tests for what remains stay. Nothing new needs testing. Dependencies
+are unchanged, since `lexopt` and `pulldown-cmark` are still used. The `adr` recipe leaves the
+justfile, and `check-repo`'s comment says it checks links.
 
 **Docs.**
 
@@ -214,9 +211,10 @@ says it checks links.
 - The architecture overview's `xtask` section and its ADR sentence lose `adr list`.
 - The repository guide's command table, layout, and Repository checks section follow the reduced
   xtask.
-- With `tags.yaml` gone and no ADRs yet, `docs/architecture/decisions/` disappears from git, so
-  links to that directory are pointed at the guide's ADR section instead, with no placeholder
-  files.
+- With `tags.yaml` gone and no ADRs yet, `docs/architecture/decisions/` disappears from git, with
+  no placeholder files. The architecture overview's link to that directory points at the guide's
+  ADR section instead, and `docs/README.md`'s ADR row names `active/` and `inactive/` in code
+  spans.
 
 ### Outside the repository
 
