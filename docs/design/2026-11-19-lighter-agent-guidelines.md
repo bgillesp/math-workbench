@@ -119,11 +119,11 @@ when a PR resolves an issue, and the squash commit message format.
 
 **`docs/guides/code-and-tests.md`**, a new seed: doc comments that say what an item is for rather
 than restating its name (from `pre-pr`), a doc comment on every field and variant of a non-trivial
-struct or enum (issue #11), checking the glossary before naming something new, and the list of test
-techniques from the development guide, without the directives tied to test approval. It also seeds a
+struct or enum (issue #11), and checking the glossary before naming something new. It also seeds a
 test style note from a human developer's earlier feedback: prefer fewer tests, each pinning behavior
 whose failure would be a real regression, and avoid pinning exact wording, incidental output, or
-choices a later change could reasonably make.
+choices a later change could reasonably make. The development guide's list of test techniques isn't
+carried over, and is recorded in the removed-guidelines summary instead.
 
 **Agent config.** Delete all of it: `.agents/` (the `pre-pr` skill), the `.claude/skills`
 symlink, `.claude/settings.json` (the format hook, the permission allowlist, and the attribution

@@ -188,8 +188,7 @@ before merge. `audit.yml` isn't a required check.
 `extended.yml` holds slower checks that don't run on every PR. For now it builds and tests on
 macOS and Windows. Run it on `main` before tagging a release, and on any branch that touches
 platform-specific code, with `gh workflow run extended.yml --ref <branch>`. Extended property
-tests, fuzzing, benchmarks, and mutation testing will go here once there's code for them (see the
-[code and test style guide](code-and-tests.md#tests)).
+tests, fuzzing, benchmarks, and mutation testing will go here once there's code for them.
 
 ## GitHub settings
 

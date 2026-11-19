@@ -43,8 +43,7 @@ tests can't rely on state shared within a process.
 | `cargo nextest run -p <crate>` | One crate's tests |
 | `cargo nextest run <filter>` | Tests whose names match a filter |
 
-The [code and test style guide](code-and-tests.md) covers what makes a good test here, and the
-techniques the repository uses.
+The [code and test style guide](code-and-tests.md) covers what makes a good test here.
 
 ## Branch notes
 
