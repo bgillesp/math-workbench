@@ -4,7 +4,7 @@ How the repository is used: Issues, branches, pull requests, tests, and what has
 change merges. How a developer and their agents plan and carry out the work is up to them, as long
 as the result follows the guides and passes CI.
 
-## Issues and the Project
+## Issues
 
 Issues record problems to solve later, and work doesn't need an issue to start. They carry three
 types of labels:
@@ -13,8 +13,7 @@ types of labels:
 - `area/<crate>` for the crate a change mainly touches
 - `needs-triage` until a human developer has reviewed and prioritized the issue
 
-Planning happens in a GitHub Project, which a human developer manages. The
-[issues and PRs guide](issues-and-prs.md) covers how to write an issue.
+The [issues and PRs guide](issues-and-prs.md) covers how to write an issue.
 
 ## Branches and pull requests
 

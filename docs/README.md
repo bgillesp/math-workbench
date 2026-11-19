@@ -8,7 +8,6 @@ changes, and what to read before different kinds of work.
 | Kind | Location | Changes | Sign-off |
 |---|---|---|---|
 | Vision | `docs/vision.md` | Rarely | Human developer |
-| Roadmap, priorities | GitHub Projects and Issues | Continuously | Human developer |
 | Decision records (ADRs) | [`architecture/decisions/`](architecture/decisions/) | Never edited once accepted; a new ADR supersedes it, and it moves to `superseded/`. Their tags are living | Human developer; agents draft only on request |
 | Design docs | [`design/`](design/) | Revised until their implementation is complete, then frozen | Human developer, before implementation |
 | Architecture overview | [`architecture/overview.md`](architecture/overview.md) | Updated in the PR that changes behavior | PR review |

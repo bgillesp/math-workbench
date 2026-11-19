@@ -81,17 +81,16 @@ Anti-goals:
 pointers to the guides. The roles paragraph becomes: a human developer sets direction, approves
 architecture decisions, and reviews PRs before they merge to `main`; Issues record problems to solve
 later, and work doesn't need an issue to start. Removed: sessions addressing a selected Issue,
-planning in a GitHub Project (the development guide still covers the Project), sessions in their own
-worktrees, reporting mismatches between code and docs, and never editing an accepted ADR (the
-architecture and design guide still says it until PR 2). The repository design paragraph drops
-test-driven development and "explicit detailed guidance on development procedures". The `.agents/`
-bullet goes, the `just fmt` description loses "an agent hook also runs this after edits" and says to
-run it before committing, and Resources lists the two new style guides.
+planning in a GitHub Project, sessions in their own worktrees, reporting mismatches between code and
+docs, and never editing an accepted ADR (the architecture and design guide still says it until PR
+2). The repository design paragraph drops test-driven development and "explicit detailed guidance on
+development procedures". The `.agents/` bullet goes, the `just fmt` description loses "an agent hook
+also runs this after edits" and says to run it before committing, and Resources lists the two new
+style guides.
 
 **`docs/guides/development.md`** becomes a guide to repository usage:
 
-- Issues and the Project: what Issues are for, the `kind/`, `area/`, and `needs-triage` labels,
-  and a Project that a human developer manages.
+- Issues: what Issues are for, and the `kind/`, `area/`, and `needs-triage` labels.
 - Branches and PRs: a short slug for branch names, with no issue number required; drafts skip
   CI; a PR is marked ready once the merge checklist holds; squash merge, branch protection, and a
   link to the issues-and-PRs guide for titles, descriptions, and commit messages.
@@ -153,6 +152,10 @@ repository doesn't expect commits or PR descriptions to credit agentic contribut
 - `docs/README.md`'s "Read this before" table points to the new guides and drops tier language.
   The "What lives where" table and Statuses wait for PR 2.
 - The glossary drops "Change tier".
+- The GitHub Project goes from every doc: `AGENTS.md`, the development guide, `docs/README.md`'s
+  "What lives where" table, and the repository guide's GitHub settings. It's a human developer's
+  own organization, not something a reader of the repository needs. Historical design docs keep
+  their mentions.
 
 **This design doc** lands in PR 1 as `docs/design/2026-11-19-lighter-agent-guidelines.md`. The
 current name check already accepts it, since it reads `2026` as a four-digit number, so the only

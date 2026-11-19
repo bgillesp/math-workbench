@@ -6,7 +6,7 @@
 
 An issue records a problem to handle later: something that doesn't work, or a capability that's
 missing. The bug and feature forms in `.github/ISSUE_TEMPLATE/` ask for what's needed, and apply the
-`needs-triage` label described in the [development guide](development.md#issues-and-the-project).
+`needs-triage` label described in the [development guide](development.md#issues).
 
 ## Pull request titles
 

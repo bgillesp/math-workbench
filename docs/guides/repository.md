@@ -212,8 +212,7 @@ that contains a recognized credential. Don't bypass it: remove the secret from t
 commits, or ask a human developer if it looks like a false positive.
 
 The `kind/`, `area/`, and `needs-triage` labels are described in the
-[development guide](development.md). The repository is linked to the
-[Math Workbench project](https://github.com/users/bgillesp/projects/1).
+[development guide](development.md).
 
 ## Dependencies
 
