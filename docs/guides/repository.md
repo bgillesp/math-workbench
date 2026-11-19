@@ -116,8 +116,8 @@ code, can opt out locally with `#[allow(unsafe_code)]` and a comment justifying 
 it's sound, and new `unsafe` code is justified in its PR.
 
 Formatting follows `rustfmt.toml`. Run `just fmt` before committing, so unformatted code never
-reaches review, and `just fmt-check` fails CI on unformatted code. `.editorconfig` and `.gitattributes` keep
-whitespace and line endings consistent in every other file.
+reaches review, and `just fmt-check` fails CI on unformatted code. `.editorconfig` and
+`.gitattributes` keep whitespace and line endings consistent in every other file.
 
 ## Repository checks
 
@@ -189,7 +189,7 @@ before merge. `audit.yml` isn't a required check.
 macOS and Windows. Run it on `main` before tagging a release, and on any branch that touches
 platform-specific code, with `gh workflow run extended.yml --ref <branch>`. Extended property
 tests, fuzzing, benchmarks, and mutation testing will go here once there's code for them (see the
-[development guide](development.md#testing)).
+[code and test style guide](code-and-tests.md#tests)).
 
 ## GitHub settings
 
@@ -197,10 +197,10 @@ These live in the repository settings rather than in files, and only a human dev
 them.
 
 PRs are squash-merged, and branches are deleted after merge. The default squash message is the PR
-title alone, so the commit body starts empty and is written at merge time, as the
-[development guide](development.md#commit-messages) describes. A ruleset on `main` requires a PR
-and a passing `just ci` on a branch that's up to date with `main`, keeps history linear, and
-blocks force pushes and deletion.
+title alone, so the commit body starts empty and is written at merge time, as the [issues and PRs
+guide](issues-and-prs.md#commit-messages) describes. A ruleset on `main` requires a PR and a passing
+`just ci` on a branch that's up to date with `main`, keeps history linear, and blocks force pushes
+and deletion.
 
 Workflows may use only GitHub's own actions and an allowlist, currently `taiki-e/install-action`
 and `Swatinem/rust-cache`. GitHub also requires every action to be pinned to a full commit SHA,

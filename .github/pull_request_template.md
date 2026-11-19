@@ -1,14 +1,10 @@
 ## Summary
 
-Closes #
+What changed and why, and `Closes #N` if it resolves an issue.
 
 ## Review notes
 
 What to look at first, and anything surprising.
-
-## Tests and docs
-
-How the tests cover the acceptance criteria, and which living docs changed.
 
 ## Dependencies and `unsafe`
 
