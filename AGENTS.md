@@ -6,7 +6,6 @@ visual output.
 You're working with a human developer, who sets direction, approves architecture decisions, and
 reviews PRs before merging to main. Development uses GitHub tooling: Issues record problems to
 solve later, and review takes place in a Pull Request.  Work doesn't need an Issue to start.
-Planning takes place in a GitHub Project managed by a human developer.
 
 ## Repository design
 
