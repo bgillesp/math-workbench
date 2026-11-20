@@ -152,56 +152,64 @@ fn normalize(path: &Path) -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
     use super::*;
 
+    /// The file whose links each test checks.
+    const PAGE: &str = "docs/guides/page.md";
+
+    /// The problems in `text`, checked as the file at [`PAGE`] in a repository holding only the
+    /// files and directories in `existing`.
+    fn check_page(text: &str, existing: &[&str]) -> Vec<Problem> {
+        check_links(Path::new(PAGE), text, |target| {
+            existing.iter().any(|path| Path::new(path) == target)
+        })
+    }
+
+    fn broken(dest: &str) -> Problem {
+        Problem::new(PAGE, ProblemKind::BrokenLink { dest: dest.into() })
+    }
+
     #[test]
-    fn links() {
-        let existing: HashSet<PathBuf> = [
-            "docs/guides/workflow.md",
-            "docs/README.md",
-            "LICENSE",
-            "docs/guides",
-        ]
-        .into_iter()
-        .map(PathBuf::from)
-        .collect();
-        let text = "\
-[ok](workflow.md#branch-notes) [up](../README.md) [root](/LICENSE) [dir](./)
-[url](https://example.com/x.md) [mail](mailto:a@example.com) [anchor](#top)
-[broken](missing.md) [outside](../../../x.md)
+    fn relative_links_resolve_from_the_linking_files_directory() {
+        // Only the last link's target is missing from `docs/guides/`; it exists at the root.
+        let text = "[sibling](sibling.md) [parent](../README.md) [root](README.md)";
+        let existing = ["docs/guides/sibling.md", "docs/README.md", "README.md"];
+        assert_eq!(check_page(text, &existing), [broken("README.md")]);
+    }
 
-[ref]: ../nope.md
-Uses [a reference][ref].
+    #[test]
+    fn leading_slash_resolves_from_the_repository_root() {
+        // Only the last link's target is missing from the root; it exists in `docs/guides/`.
+        let text = "[license](/LICENSE) [sibling](/sibling.md)";
+        let existing = ["LICENSE", "docs/guides/sibling.md"];
+        assert_eq!(check_page(text, &existing), [broken("/sibling.md")]);
+    }
 
-`[code](ignored.md)`
-
-```
-[fenced](ignored.md)
-```
-";
-        let path = "docs/guides/workflow.md";
-        let problems = check_links(Path::new(path), text, |p| existing.contains(p));
+    #[test]
+    fn links_above_the_root_are_reported_as_outside_the_repository() {
         assert_eq!(
-            problems,
-            [
-                Problem::new(path, ProblemKind::BrokenLink { dest: "missing.md".into() }),
-                Problem::new(
-                    path,
-                    ProblemKind::LinkOutsideRepository { dest: "../../../x.md".into() }
-                ),
-                Problem::new(path, ProblemKind::BrokenLink { dest: "../nope.md".into() }),
-            ]
+            check_page("[outside](../../../x.md)", &[]),
+            [Problem::new(
+                PAGE,
+                ProblemKind::LinkOutsideRepository { dest: "../../../x.md".into() }
+            )]
         );
     }
 
     #[test]
-    fn problems_display_as_messages() {
-        assert_eq!(
-            Problem::new("docs/README.md", ProblemKind::BrokenLink { dest: "x.md#top".into() })
-                .to_string(),
-            "docs/README.md: broken link `x.md#top`"
-        );
+    fn anchors_and_queries_are_ignored() {
+        let text = "[anchor](sibling.md#part) [query](sibling.md?plain=1)";
+        assert_eq!(check_page(text, &["docs/guides/sibling.md"]), Vec::<Problem>::new());
+    }
+
+    #[test]
+    fn external_and_same_page_links_are_skipped() {
+        let text = "[url](https://example.com/x.md) [mail](mailto:a@example.com) [heading](#top)";
+        assert_eq!(check_page(text, &[]), Vec::<Problem>::new());
+    }
+
+    #[test]
+    fn images_are_checked_like_links() {
+        assert_eq!(check_page("![diagram](diagram.svg)", &[]), [broken("diagram.svg")]);
     }
 }

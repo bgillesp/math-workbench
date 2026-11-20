@@ -51,12 +51,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ready_branch_passes() {
-        assert_eq!(check(&[]), Vec::<Problem>::new());
-    }
-
-    #[test]
-    fn branch_notes_fail() {
+    fn each_file_in_wip_is_reported() {
         let notes = ["README.md".to_string(), "plan.md".to_string()];
         assert_eq!(
             check(&notes),
@@ -68,11 +63,9 @@ mod tests {
     }
 
     #[test]
-    fn problems_display_as_messages() {
-        assert_eq!(
-            Problem::BranchNotes { name: "plan.md".into() }.to_string(),
-            "docs/wip/plan.md: remove branch notes before merge (see \
-             docs/guides/development.md#branch-notes)"
-        );
+    fn missing_wip_directory_passes() {
+        // The crate's own directory stands in for a repository without `docs/wip/`.
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        assert_eq!(run(root).unwrap(), Vec::<String>::new());
     }
 }

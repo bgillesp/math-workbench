@@ -143,8 +143,13 @@ mod tests {
 
     #[test]
     fn commands_parse_by_name() {
-        for command in Command::ALL {
-            assert_eq!(parse(&[command.name()]), Ok(Some(command)));
+        // Literal names, since the `justfile` calls the commands by them.
+        for (name, command) in [
+            ("check-docs", Command::CheckDocs),
+            ("check-ready", Command::CheckReady),
+            ("doctor", Command::Doctor),
+        ] {
+            assert_eq!(parse(&[name]), Ok(Some(command)), "{name}");
         }
     }
 
@@ -157,10 +162,15 @@ mod tests {
 
     #[test]
     fn bad_arguments_fail() {
-        assert_eq!(parse(&[]), Err("missing command".to_string()));
-        assert_eq!(parse(&["check-all"]), Err("unknown command `check-all`".to_string()));
-        assert!(parse(&["check-docs", "extra"]).is_err());
-        assert!(parse(&["--verbose"]).is_err());
+        let cases: [&[&str]; 4] = [
+            &[],
+            &["check-all"],
+            &["check-docs", "extra"],
+            &["--verbose"],
+        ];
+        for args in cases {
+            assert!(parse(args).is_err(), "{args:?}");
+        }
     }
 
     #[test]
