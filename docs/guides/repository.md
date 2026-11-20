@@ -3,8 +3,8 @@
 How the repository maintains code quality and consistency: its layout, the Cargo workspace and its
 conventions, the checks behind `just ci`, CI and the GitHub settings around it, dependency policy,
 and agent tooling. Read it before changing any of these, or when a check fails and the reason
-isn't clear. The [conventions design doc](../design/0002-repository-conventions.md) records the
-reasoning as first planned. This guide describes the setup as it stands, and takes precedence
+isn't clear. The [conventions design doc](../design/2026-10-23-repository-conventions.md) records
+the reasoning as first planned. This guide describes the setup as it stands, and takes precedence
 where the two differ.
 
 Two principles run through the setup. Anything that must hold is checked by `just ci`, and CI runs
@@ -37,7 +37,7 @@ written in Rust in `xtask` rather than as a shell script.
 │   ├── pull_request_template.md
 │   └── ISSUE_TEMPLATE/       # bug and feature forms
 ├── crates/mw-<name>/         # the application's crates
-├── xtask/                    # repository checks, and the `adr` command
+├── xtask/                    # repository checks
 └── docs/                     # see docs/README.md
 ```
 
@@ -56,14 +56,13 @@ Every command is a recipe in the [justfile](../../justfile).
 | `just deny` | `cargo deny check bans licenses sources` |
 | `just audit` | `cargo deny check advisories` |
 | `just check-repo` | `cargo xtask check-docs` |
-| `just adr <args>` | `cargo xtask adr <args>` |
 | `just check` | `fmt-check`, `lint`, `test`, `doc`, `deny`, and `check-repo` |
 | `just ci` | `check`, then `cargo xtask check-ready` |
 
 Recipes cover the whole workspace with all features enabled. `just check` leaves out
-`check-ready`, since a branch in progress is expected to have branch notes and a `draft`
-design doc, and neither `check` nor `ci` runs `just audit`, which has its own workflow (see
-[CI](#ci)). On Windows, `just` runs recipes in PowerShell.
+`check-ready`, since a branch in progress is expected to have branch notes, and neither `check`
+nor `ci` runs `just audit`, which has its own workflow (see [CI](#ci)). On Windows, `just` runs
+recipes in PowerShell.
 
 ## Cargo workspace
 
@@ -126,38 +125,24 @@ in `.cargo/config.toml`, usually from a recipe. `cargo xtask --help` lists its c
 
 | Command | Does | Run by |
 |---|---|---|
-| `check-docs` | Checks ADRs, design docs, and relative links | `just check-repo` |
-| `check-ready` | Checks that `docs/wip/` is empty or missing, and every design doc is `accepted` or `implemented` | `just ci` |
+| `check-docs` | Checks relative links in Markdown files | `just check-repo` |
+| `check-ready` | Checks that `docs/wip/` is empty or missing | `just ci` |
 | `doctor` | Warns about missing tools | `just setup` |
-| `adr` | Lists ADRs and their tags; `cargo xtask adr --help` lists its subcommands | `just adr` |
 
 Each check prints an `error:` line for each problem, naming the file or crate to fix, and exits
 with a failure status if it found any. `doctor` only warns, so `just setup` always finishes.
 
-`check-docs` covers three things:
-
-- ADRs in `docs/architecture/decisions/active/` and `superseded/`, and their tags in
-  `decisions/tags.yaml`: file names like `0003-short-title.md`, the front matter schema, ids that
-  match the file names and are unique, `supersedes` entries that name existing ADRs with lower
-  numbers, at most one successor for each ADR, an ADR in `superseded/` exactly when a later ADR
-  supersedes it, and a line in `tags.yaml` for each tag, which has to be well formed, appear once,
-  and list only ADRs that exist. The
-  [architecture and design guide](architecture-and-design.md#architecture-decision-records)
-  describes the layout.
-- Design docs in `docs/design/`: file names, unique numbers, and statuses.
-- Every Markdown file that git tracks or would track: relative links and images must point to
-  files in the repository. A path starting with `/` resolves from the repository root. Links with
-  a scheme, such as `https:`, are skipped, and anchors aren't checked.
-
-The design doc statuses are listed in [docs/README.md](../README.md#statuses).
+`check-docs` reads every Markdown file that git tracks or would track, and checks that its
+relative links and images point to files in the repository. A path starting with `/` resolves from
+the repository root. Links with a scheme, such as `https:`, are skipped, and anchors aren't
+checked.
 
 Each command is a module in `xtask/src/`, listed in `Command::ALL` in `main.rs`, which also
-generates the usage text. `adr` is a directory module with a file for each subcommand, listed in its
-own `SUBCOMMANDS` table, and its checks are in `adr/check.rs`. A check keeps its file and process
-I/O in a `run` function, and its logic in a pure `check` function that the unit tests call directly.
-Problems are recorded as enum values and formatted as messages only at the end, so tests compare
-exact results. A new check gets a recipe under `check-repo` if it should run while working, or joins
-`check-ready` if it checks the state of a branch that's ready to merge.
+generates the usage text. A check keeps its file and process I/O in a `run` function, and its
+logic in a pure `check` function that the unit tests call directly. Problems are recorded as enum
+values and formatted as messages only at the end, so tests compare exact results. A new check gets
+a recipe under `check-repo` if it should run while working, or joins `check-ready` if it checks the
+state of a branch that's ready to merge.
 
 `xtask` keeps its dependencies few, with `lexopt` rather than `clap` for arguments and
 `pulldown-cmark` without default features, so it builds quickly however large the application's
