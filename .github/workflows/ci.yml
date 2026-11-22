@@ -1,5 +1,12 @@
 name: CI
 
+# Jobs only install the toolchain and tools, then run a recipe, so every check reproduces locally.
+#
+# Workflows may use only GitHub's own actions and an allowlist, each pinned to a full commit SHA
+# with its version in a comment. Dependabot keeps the pins current. A new third-party action is
+# justified like a dependency, and a human developer adds it under Settings → Actions → General
+# first, or GitHub rejects the run.
+
 on:
   pull_request:
     branches: [main]
@@ -21,6 +28,9 @@ env:
 
 jobs:
   ci:
+    # The ruleset on main requires this job by name, on a branch up to date with main. Renaming it
+    # blocks every merge until a human developer updates the ruleset, so a PR that renames it
+    # says so.
     name: just ci
     # Draft PRs skip CI; marking a PR ready for review runs it.
     if: ${{ !github.event.pull_request.draft }}
