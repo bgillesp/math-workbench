@@ -1,4 +1,5 @@
-//! `check-docs`: relative links in Markdown files point to files in the repository.
+//! `check-docs`: relative links in Markdown files, apart from design docs, point to files in the
+//! repository.
 
 use std::fmt;
 use std::fs;
@@ -8,6 +9,10 @@ use std::process::Command;
 use pulldown_cmark::{Event, Options, Parser, Tag};
 
 use crate::{CheckResult, display};
+
+/// Design docs, which are left as a historical record, so their links aren't kept in step with
+/// later moves. Git history shows what a link pointed to when its doc was written.
+const UNCHECKED_DIR: &str = "docs/design";
 
 /// A problem in one file.
 #[derive(Debug, PartialEq, Eq)]
@@ -61,8 +66,8 @@ pub(crate) fn run(root: &Path) -> CheckResult {
     Ok(problems.iter().map(ToString::to_string).collect())
 }
 
-/// Markdown files that git tracks or would track, so ignored and nested-worktree files are
-/// skipped.
+/// Markdown files to check: those that git tracks or would track, so ignored and nested-worktree
+/// files are skipped, outside [`UNCHECKED_DIR`].
 fn markdown_files(root: &Path) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
     let output = Command::new("git")
         .args([
@@ -84,10 +89,15 @@ fn markdown_files(root: &Path) -> Result<Vec<PathBuf>, Box<dyn std::error::Error
         .split('\0')
         .filter(|p| !p.is_empty())
         .map(PathBuf::from)
+        .filter(|p| is_checked(p))
         .collect();
     paths.sort();
     paths.dedup();
     Ok(paths)
+}
+
+fn is_checked(path: &Path) -> bool {
+    !path.starts_with(UNCHECKED_DIR)
 }
 
 fn markdown_options() -> Options {
@@ -211,5 +221,11 @@ mod tests {
     #[test]
     fn images_are_checked_like_links() {
         assert_eq!(check_page("![diagram](diagram.svg)", &[]), [broken("diagram.svg")]);
+    }
+
+    #[test]
+    fn design_docs_are_not_checked() {
+        assert!(!is_checked(Path::new("docs/design/2026-01-01-topic.md")));
+        assert!(is_checked(Path::new("docs/architecture/overview.md")));
     }
 }

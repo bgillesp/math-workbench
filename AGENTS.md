@@ -48,7 +48,7 @@ columns, no headings or links. Start with one or a few sentences that succinctly
 purpose of a commit in a self-contained way. A reader should get a "good enough" picture by reading
 the first paragraph. Then summarize the main changes in general terms. Err on the side of concision.
 When merging a PR, the squash commit's subject is the PR title plus the PR number, as in
-`test(xtask): focus tests on behavior that can regress (#28)`. 
+`test(xtask): focus tests on behavior that can regress (#28)`.
 
 ## GitHub
 
@@ -80,4 +80,5 @@ dated the day it was first written. Design documents may change freely during de
 the PR merges, it should be updated to reflect the decision made. If work on a design doc extends to
 multiple PRs, the doc should open with a short note on what's happening, to be removed once work is
 finished. Once a design doc is implemented, its contents are frozen and any later change in the same
-area gets a new doc.
+area gets a new doc. Links in design docs aren't checked or updated; git history shows what a link
+pointed to when its doc was written.
