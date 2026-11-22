@@ -1,7 +1,9 @@
 [workspace]
 resolver = "3"
+# Application crates sit side by side in `crates/mw-<name>/`.
 members = ["crates/*", "xtask"]
 
+# Crates inherit these with `key.workspace = true`.
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
@@ -10,19 +12,22 @@ license = "Apache-2.0"
 repository = "https://github.com/bgillesp/math-workbench"
 publish = false
 
+# All dependency versions are declared here, and crates inherit them with `name.workspace = true`.
 [workspace.dependencies]
 # Workspace crates
 mw-math = { path = "crates/mw-math" }
-
 # External crates
 lexopt = "0.3.2"
 pulldown-cmark = { version = "0.13.4", default-features = false }
 
+# `just lint` and `just doc` turn every warning into an error.
 [workspace.lints.rust]
-unsafe_code = "deny" # deny, not forbid: an FFI/GPU module can opt out locally, with justification
+# A module that needs `unsafe` may opt out explicitly with `#[allow(unsafe_code)]` and a comment
+# justifying it.
+unsafe_code = "deny"
 missing_docs = "warn"
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
 undocumented_unsafe_blocks = "warn"
-# Allows for noisy pedantic lints go here, each with a one-line reason.
+# Noisy pedantic lints may be disabled here, each with a one-line reason.

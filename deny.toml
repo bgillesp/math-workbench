@@ -33,7 +33,7 @@ unused-allowed-license = "allow"
 multiple-versions = "deny"
 wildcards = "deny"
 allow-wildcard-paths = true
-# Each entry needs a reason.
+# Include a reason for any exceptions.
 deny = []
 skip = []
 skip-tree = []

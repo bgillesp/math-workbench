@@ -5,6 +5,9 @@ updates:
     schedule:
       interval: weekly
     # Wait a week after each release, so a malicious release is likely caught and yanked first.
+    # This doesn't limit what lands in Cargo.lock: a lockfile update can move to a newer compatible
+    # release still inside the cooldown, while the PR names the version Dependabot chose
+    # (https://github.com/dependabot/dependabot-core/issues/16428). Review the Cargo.lock diff.
     cooldown:
       default-days: 7
     commit-message:

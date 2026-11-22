@@ -7,6 +7,8 @@ rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 
+# Kept few and light, so xtask builds quickly however large the application's dependency tree grows:
+# `lexopt` rather than `clap`, and `pulldown-cmark` without default features.
 [dependencies]
 lexopt.workspace = true
 pulldown-cmark.workspace = true

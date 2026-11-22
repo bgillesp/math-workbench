@@ -20,9 +20,8 @@ Development works on Linux, macOS, and Windows.
 
 ## Contributing
 
-[docs/README.md](docs/README.md) explains how the repository and its docs are organized, and the
-[development guide](docs/guides/development.md) covers how changes are made. Coding agents start
-from [AGENTS.md](AGENTS.md).
+[AGENTS.md](AGENTS.md) describes the repository's commands, conventions, and docs, for
+contributors and coding agents alike.
 
 ## License
 

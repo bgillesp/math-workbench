@@ -2,9 +2,8 @@
 
 The system as it currently stands: a codemap with one section per crate, and the invariants that
 span crates. It's the first stop for getting oriented. Update it in the same PR as any change it
-describes. The reasoning behind the structure lives in the
-[ADRs](../guides/architecture-and-design.md#architecture-decision-records) in force, in
-`decisions/active/`.
+describes. The reasoning behind the structure lives in the [ADRs](../decisions/README.md) in
+force, in `docs/decisions/active/`.
 
 ## Codemap
 

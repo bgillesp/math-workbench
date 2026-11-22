@@ -1,7 +1,9 @@
 name: Extended
 
-# Slower checks that don't run on every PR. Run it manually on branches that touch platform
-# code, and before tagging a release.
+# Slower checks that don't run on every PR: for now, tests on macOS and Windows. Extended property
+# tests, fuzzing, benchmarks, and mutation testing go here once there's code for them. Run it on
+# main before tagging a release, and on branches that touch platform-specific code, with
+# `gh workflow run extended.yml --ref <branch>`.
 on:
   schedule:
     - cron: "0 7 * * 1"

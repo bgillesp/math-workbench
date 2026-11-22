@@ -20,11 +20,9 @@ enum Problem {
 impl fmt::Display for Problem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::BranchNotes { name } => write!(
-                f,
-                "{WIP_DIR}/{name}: remove branch notes before merge \
-                 (see docs/guides/development.md#branch-notes)"
-            ),
+            Self::BranchNotes { name } => {
+                write!(f, "{WIP_DIR}/{name}: remove branch notes before merge")
+            },
         }
     }
 }

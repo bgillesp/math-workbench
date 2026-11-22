@@ -2,6 +2,12 @@
 //!
 //! Run through the `cargo xtask` alias, usually from a `just` recipe. Each check prints the
 //! problems it finds and exits with a failure status if there are any.
+//!
+//! Each command is a module, listed in [`Command::ALL`], which also generates the usage text. A
+//! check keeps file and process I/O in its `run` function and its logic in pure functions that
+//! unit tests call directly. Problems are enum values, formatted as messages only at the end, so
+//! tests compare exact results. A new check joins `just check-repo` if it should run while
+//! working, or `check-ready` if it checks that a branch is ready to merge.
 
 mod docs;
 mod doctor;

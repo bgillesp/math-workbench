@@ -1,4 +1,5 @@
-# Recipes stay short calls into cargo or xtask so they run in any shell.
+# Recipes stay short calls into cargo or xtask so they run in any shell, and anything with real
+# logic is written in Rust in xtask.
 
 set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 

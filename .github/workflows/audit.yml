@@ -1,6 +1,8 @@
 name: Audit
 
-# Advisories run separately from CI so a newly published advisory doesn't fail unrelated PRs.
+# Advisories run separately from CI so a newly published advisory doesn't fail unrelated PRs. The
+# weekly run surfaces it instead, and PRs that change dependencies are checked before merge. This
+# isn't a required check.
 on:
   schedule:
     - cron: "0 6 * * 1"
